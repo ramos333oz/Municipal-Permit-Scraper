@@ -1,0 +1,48 @@
+[
+  {
+    "site_number": "PDS2025-ENFCIT-002015",
+    "status": "Record Status:",
+    "project_city": "San Diego County",
+    "notes": null,
+    "project_company": null,
+    "project_contact": null,
+    "project_phone": null,
+    "project_email": null,
+    "quantity": null,
+    "material_description": null,
+    "dump_fee": null,
+    "trucking_price_per_load": null,
+    "ldp_fee": null,
+    "total_price_per_load": null,
+    "source_portal": "San Diego County",
+    "scraped_at": "2025-08-12T02:06:54.249420",
+    "raw_data": {
+      "url": "https://publicservices.sandiegocounty.gov/CitizenAccess/Cap/CapDetail.aspx?Module=LUEG-PDS&TabName=LUEG-PDS&capID1=25CAP&capID2=00000&capID3=02UXQ&agencyCode=COSD&IsToShowInspection=",
+      "page_title": "Accela Citizen Access",
+      "extraction_timestamp": "2025-08-12T02:06:54.249420"
+    }
+  },
+  {
+    "site_number": "PDS2025-RESALT-006012",
+    "status": "Record Status:",
+    "project_city": "San Diego County",
+    "notes": null,
+    "project_company": null,
+    "project_contact": "PDS Permit Contact information  SARA MARIANA                 CAPrimary Phone:7078003259E-mail:SARA@PERMITSERVICES.COM",
+    "project_phone": "(707) 433-8211",
+    "project_email": null,
+    "quantity": null,
+    "material_description": null,
+    "dump_fee": null,
+    "trucking_price_per_load": null,
+    "ldp_fee": null,
+    "total_price_per_load": null,
+    "source_portal": "San Diego County",
+    "scraped_at": "2025-08-12T02:07:11.992972",
+    "raw_data": {
+      "url": "https://publicservices.sandiegocounty.gov/CitizenAccess/Cap/CapDetail.aspx?Module=LUEG-PDS&TabName=LUEG-PDS&capID1=25CAP&capID2=00000&capID3=02UXN&agencyCode=COSD&IsToShowInspection=",
+      "page_title": "Accela Citizen Access",
+      "extraction_timestamp": "2025-08-12T02:07:11.992972"
+    }
+  }
+]
