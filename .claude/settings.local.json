@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__playwright__browser_tab_list",
+      "mcp__supabase__list_organizations",
+      "mcp__context7__resolve-library-id",
+      "mcp__ide__getDiagnostics"
+    ],
+    "deny": []
+  }
+}
