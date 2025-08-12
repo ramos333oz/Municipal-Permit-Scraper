@@ -18,6 +18,21 @@ from playwright.async_api import async_playwright, Page, Browser, BrowserContext
 from dataclasses import dataclass, asdict
 import random
 
+# Import our integration modules
+try:
+    from supabase_direct_integration import SupabaseDirectIntegration
+    from geocoding_integration import add_geocoding_to_permits
+    SUPABASE_AVAILABLE = True
+except ImportError:
+    SUPABASE_AVAILABLE = False
+
+# Optional Airtable integration (for business users who need it)
+try:
+    from airtable_integration import AirtableIntegration
+    AIRTABLE_AVAILABLE = True
+except ImportError:
+    AIRTABLE_AVAILABLE = False
+
 # Configure enhanced logging
 logging.basicConfig(
     level=logging.INFO,
@@ -50,13 +65,19 @@ class PermitData:
     # Material and quantity information
     quantity: Optional[float] = None            # Material volume/amount
     material_description: Optional[str] = None  # Type of construction material
-    
+
+    # Enhanced fields from CSV analysis (critical for comprehensive data collection)
+    opened_date: Optional[str] = None           # Permit opening date (Opened Date)
+    project_name: Optional[str] = None          # Project name (Project Name)
+    address: Optional[str] = None               # Full address (Address) - CRITICAL for geocoding
+    short_notes: Optional[str] = None           # Short notes (Short Notes)
+
     # Pricing calculation fields (populated by business logic)
     dump_fee: Optional[float] = None            # Disposal cost
     trucking_price_per_load: Optional[float] = None  # Calculated transportation cost
     ldp_fee: Optional[float] = None             # Additional regulatory fee
     total_price_per_load: Optional[float] = None     # Total calculated cost
-    
+
     # Metadata
     source_portal: str = "San Diego County"
     scraped_at: str = None
@@ -319,20 +340,27 @@ class SanDiegoCountyScraper:
             await page.goto(permit_url, wait_until='networkidle')
             await self.random_delay(3, 5)
 
-            # Extract core permit information using Accela selectors (no iframe needed)
+            # Extract core permit information using enhanced selectors
             permit_data.site_number = await self.safe_extract_text(page, [
+                'h1:has-text("Record ID")',
                 'span[id*="RecordNumber"]',
                 'td:has-text("Record Number") + td',
                 '[id*="lblRecordNumber"]',
                 'span[id*="PermitNumber"]'
             ])
 
+            # Extract status from the page header
             permit_data.status = await self.safe_extract_text(page, [
+                'h1:has-text("Record Status:")',
                 'span[id*="RecordStatus"]',
                 'td:has-text("Status") + td',
                 '[id*="lblStatus"]',
                 'span[id*="PermitStatus"]'
             ])
+
+            # Clean up status text (remove "Record Status:" prefix)
+            if permit_data.status and "Record Status:" in permit_data.status:
+                permit_data.status = permit_data.status.replace("Record Status:", "").strip()
 
             permit_data.project_city = "San Diego County"  # Default for this portal
 
@@ -367,12 +395,27 @@ class SanDiegoCountyScraper:
                 'span[id*="ContactEmail"]'
             ])
 
+            # Extract address information (critical for geocoding)
+            address = await self.safe_extract_text(page, [
+                'span[id*="Address"]',
+                'td:has-text("Address") + td',
+                '[id*="lblAddress"]',
+                'span[id*="SiteAddress"]',
+                'span[id*="ProjectAddress"]'
+            ])
+
+            # Store address in the raw_data for now, will be processed later
+            if address:
+                permit_data.raw_data = permit_data.raw_data or {}
+                permit_data.raw_data['address'] = address
+
             # Extract project description for material and quantity analysis
             project_description = await self.safe_extract_text(page, [
                 'span[id*="WorkDescription"]',
                 'td:has-text("Work Description") + td',
                 '[id*="lblDescription"]',
-                'span[id*="ProjectDescription"]'
+                'span[id*="ProjectDescription"]',
+                'h1:has-text("Project Description:")'
             ])
 
             permit_data.notes = project_description
@@ -545,19 +588,19 @@ async def main():
     logger.info("=== Starting San Diego County Permit Scraper Test ===")
     scraper = SanDiegoCountyScraper()
 
-    # Define search criteria for testing (recent permits)
+    # Define search criteria for comprehensive data collection (2023 to present)
     search_criteria = {
         'permit_type': 'Grading Perm',  # Updated to use correct Accela value
-        'date_from': '01/01/2024',     # MM/DD/YYYY format for Accela
+        'date_from': '01/01/2023',     # MM/DD/YYYY format for Accela - comprehensive historical data
         'date_to': '08/11/2025'        # Current date range
     }
 
     logger.info(f"Search criteria: {search_criteria}")
 
     try:
-        # Scrape permits (limited to 2 for testing)
-        logger.info("Starting permit scraping process...")
-        permits = await scraper.scrape_permits(search_criteria, max_permits=2)
+        # Scrape permits (comprehensive collection - all available permits)
+        logger.info("Starting comprehensive permit scraping process...")
+        permits = await scraper.scrape_permits(search_criteria, max_permits=50)  # Increased limit for comprehensive data
 
         if permits:
             logger.info(f"✅ SUCCESS: Found {len(permits)} permits!")
@@ -580,8 +623,43 @@ async def main():
         output_data = [asdict(permit) for permit in permits]
         with open('san_diego_permits.json', 'w') as f:
             json.dump(output_data, f, indent=2, default=str)
-        
+
         print(f"\nData saved to san_diego_permits.json")
+
+        # Enhanced integrations - Recommended: Direct to Supabase
+        if SUPABASE_AVAILABLE:
+            logger.info("🔗 Starting Supabase direct integration (RECOMMENDED)...")
+
+            try:
+                # Add geocoding information
+                logger.info("🗺️ Adding geocoding information...")
+                geocoded_permits = add_geocoding_to_permits(output_data)
+
+                # Save geocoded data
+                with open('san_diego_permits_with_geocoding.json', 'w') as f:
+                    json.dump(geocoded_permits, f, indent=2, default=str)
+                logger.info("💾 Saved geocoded data to san_diego_permits_with_geocoding.json")
+
+                # Upload directly to Supabase (RECOMMENDED APPROACH)
+                logger.info("📤 Uploading directly to Supabase...")
+                supabase = SupabaseDirectIntegration()
+                results = supabase.batch_upsert_permits(geocoded_permits)
+
+                logger.info("📊 Supabase Integration Summary:")
+                logger.info(f"   🗺️ Geocoded: {sum(1 for p in geocoded_permits if 'coordinates' in p)}/{len(geocoded_permits)} permits")
+                logger.info(f"   📤 Supabase upserts: {results['success']} success, {results['failed']} failed")
+
+                # Optional: Also upload to Airtable for business users (if available)
+                if AIRTABLE_AVAILABLE:
+                    logger.info("📤 Optional: Also uploading to Airtable for business users...")
+                    airtable = AirtableIntegration()
+                    airtable_results = airtable.batch_upload_permits(geocoded_permits)
+                    logger.info(f"   📤 Airtable uploads: {airtable_results['success']} success, {airtable_results['failed']} failed")
+
+            except Exception as e:
+                logger.error(f"❌ Integration error: {e}")
+        else:
+            logger.info("⚠️ Supabase integration not available. Install supabase client: pip install supabase")
     else:
         print("No permits extracted")
 

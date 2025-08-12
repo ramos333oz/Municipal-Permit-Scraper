@@ -1,0 +1,86 @@
+{
+  "file_info": {
+    "filename": "C:/Users/Moussa/AppData/Local/Temp/playwright-mcp-output/2025-08-12T04-45-42.791Z/RecordList20250811.csv",
+    "rows": 3,
+    "columns": 8,
+    "memory_usage_kb": 1.494140625
+  },
+  "columns": {
+    "names": [
+      "Record ID",
+      "Opened Date",
+      "Record Type",
+      "Project Name",
+      "Address",
+      "Record Status",
+      "Short Notes",
+      "Unnamed: 7"
+    ],
+    "types": {
+      "Record ID": "object",
+      "Opened Date": "object",
+      "Record Type": "object",
+      "Project Name": "object",
+      "Address": "object",
+      "Record Status": "object",
+      "Short Notes": "object",
+      "Unnamed: 7": "float64"
+    }
+  },
+  "missing_data": {
+    "Record ID": 0,
+    "Opened Date": 0,
+    "Record Type": 0,
+    "Project Name": 0,
+    "Address": 1,
+    "Record Status": 0,
+    "Short Notes": 0,
+    "Unnamed: 7": 3
+  },
+  "sample_data": [
+    {
+      "Record ID": "PDS2024-LDGRNA-00026",
+      "Opened Date": "06/26/2024",
+      "Record Type": "Grading Perm",
+      "Project Name": "Ortega Stockpile Permit",
+      "Address": NaN,
+      "Record Status": "Recommended",
+      "Short Notes": "Stockpile",
+      "Unnamed: 7": NaN
+    },
+    {
+      "Record ID": "PDS2023-LDGRNA-00025",
+      "Opened Date": "12/06/2023",
+      "Record Type": "Grading Perm",
+      "Project Name": "Vista Hannalei - Stockpile - FICO",
+      "Address": "145 HANNALEI DR, VISTA CA 92083",
+      "Record Status": "Open",
+      "Short Notes": "Stockpile",
+      "Unnamed: 7": NaN
+    },
+    {
+      "Record ID": "PDS2023-LDGRNA-00024",
+      "Opened Date": "07/28/2023",
+      "Record Type": "Grading Perm",
+      "Project Name": "Jamul Casino Parking Batch Plant",
+      "Address": "14024 PEACEFUL VALLEY RANCH RD, JAMUL CA 91935",
+      "Record Status": "Cancelled",
+      "Short Notes": "Commercial/Industrial Grading",
+      "Unnamed: 7": NaN
+    }
+  ],
+  "unique_values": {
+    "Record Type": {
+      "Grading Perm": 3
+    },
+    "Record Status": {
+      "Recommended": 1,
+      "Open": 1,
+      "Cancelled": 1
+    },
+    "Short Notes": {
+      "Stockpile": 2,
+      "Commercial/Industrial Grading": 1
+    }
+  }
+}
