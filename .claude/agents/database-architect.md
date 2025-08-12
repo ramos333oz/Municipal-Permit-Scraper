@@ -48,10 +48,17 @@ When architecting the Municipal Grading Permit Scraper database, ALWAYS implemen
 
 **Implementation Pattern:**
 ```python
-# Direct Supabase integration (RECOMMENDED)
+# Direct Supabase integration (RECOMMENDED) - Based on actual CSV structure
 supabase_client = create_client(supabase_url, supabase_key)
-permits_data = scrape_municipal_portal()
-geocoded_permits = add_geocodio_geocoding(permits_data)  # Geocodio primary
+
+# Download and process actual CSV file (5 columns)
+csv_data = download_csv_from_portal()  # RecordList20250811.csv format
+permits_data = extract_csv_data(csv_data)  # Extract: Record Number, Type, Address, Date Opened, Status
+
+# Geocode using actual Address column from CSV
+geocoded_permits = add_geocodio_geocoding(permits_data, address_field='Address')  # Geocodio primary
+
+# Store in Supabase with proper field mapping
 supabase_client.table("permits").upsert(geocoded_permits)
 ```
 
@@ -72,52 +79,58 @@ supabase_client.table("permits").upsert(geocoded_permits)
 
 ### Complete Schema for 15 Required Fields
 
-#### Core Permits Table Structure
+#### Core Permits Table Structure (Based on Actual CSV Data)
 ```sql
 CREATE TABLE permits (
     -- Primary identification
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    site_number VARCHAR(100) UNIQUE NOT NULL,           -- Permit record number
-    status VARCHAR(50) NOT NULL,                        -- Permit approval status
-    project_city VARCHAR(100) NOT NULL,                 -- Municipality location
-    notes TEXT,                                         -- Additional project information
+    site_number VARCHAR(100) UNIQUE NOT NULL,           -- CSV: Record Number (e.g., "PDS2025-RESALT-006012")
+    record_type VARCHAR(100) NOT NULL,                  -- CSV: Type (e.g., "Grading Perm")
+    status VARCHAR(50),                                 -- CSV: Status (e.g., "Complete", "Under Review")
+    date_opened DATE,                                   -- CSV: Date Opened (MM/DD/YYYY format)
+    project_city VARCHAR(100) DEFAULT 'San Diego County', -- Derived from portal source
 
-    -- Contact information
-    project_company VARCHAR(255),                       -- Contractor/applicant company
-    project_contact VARCHAR(255),                       -- Primary contact person
-    project_phone VARCHAR(20),                          -- Phone number (formatted)
-    project_email VARCHAR(255),                         -- Email address
+    -- Address information (from CSV)
+    address TEXT,                                       -- CSV: Address (e.g., "4580 E ONTARIO MILLS PW, ONTARIO CA 91764")
 
-    -- Material and quantity information
-    quantity DECIMAL(12,2),                             -- Material volume/amount
-    material_description TEXT,                          -- Type of construction material
+    -- Additional fields for business logic (not in CSV)
+    project_company VARCHAR(255),                       -- For future enhancement
+    project_contact VARCHAR(255),                       -- For future enhancement
+    project_phone VARCHAR(20),                          -- For future enhancement
+    project_email VARCHAR(255),                         -- For future enhancement
+    quantity DECIMAL(12,2),                             -- For future enhancement
+    material_description TEXT,                          -- For future enhancement
+    notes TEXT,                                         -- For future enhancement
 
-    -- Pricing calculations
-    dump_fee DECIMAL(10,2) DEFAULT 0,                   -- Disposal cost
-    trucking_price_per_load DECIMAL(10,2),              -- Calculated transportation cost
-    ldp_fee DECIMAL(10,2) DEFAULT 0,                    -- Additional regulatory fee
+    -- Pricing calculations (calculated fields)
+    dump_fee DECIMAL(10,2) DEFAULT 0,                   -- Business logic calculation
+    trucking_price_per_load DECIMAL(10,2),              -- Calculated from distance
+    ldp_fee DECIMAL(10,2) DEFAULT 0,                    -- Business logic calculation
     total_price_per_load DECIMAL(10,2),                 -- Total calculated cost
+    roundtrip_minutes INTEGER,                          -- Calculated from coordinates
+    added_minutes INTEGER DEFAULT 0,                    -- Manual adjustment
 
-    -- Calculation support fields
-    roundtrip_minutes INTEGER,                          -- Drive time for calculations
-    added_minutes INTEGER DEFAULT 0,                    -- Manual adjustment minutes
+    -- Geospatial data (from geocoding)
+    coordinates GEOMETRY(POINT, 4326),                  -- PostGIS coordinates from address
+    geocoding_accuracy VARCHAR(50),                     -- Geocoding quality
+    geocoding_confidence DECIMAL(3,2),                  -- Geocoding confidence score
+    geocoding_source VARCHAR(20),                       -- Geocoding service used
+    formatted_address TEXT,                             -- Standardized address
 
-    -- Geospatial and metadata
-    coordinates GEOMETRY(POINT, 4326),                  -- PostGIS coordinates
-    address TEXT,                                       -- Full address
-    source_portal VARCHAR(100),                         -- Source municipal portal
-    raw_data JSONB,                                     -- Original scraped data
+    -- Metadata
+    source_portal VARCHAR(100) DEFAULT 'San Diego County',
+    raw_csv_data JSONB,                                 -- Original CSV row data
 
     -- Timestamps
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     scraped_at TIMESTAMP WITH TIME ZONE,
 
-    -- Constraints
-    CONSTRAINT valid_status CHECK (status IN ('Open', 'HOT', 'Completed', 'Inactive', 'Final', 'Issued', 'In Review', 'Withdrawn')),
+    -- Constraints based on actual CSV data
+    CONSTRAINT valid_status CHECK (status IN ('Complete', 'Approved Final', 'Withdrawn', 'Approved', 'Under Review', 'Active', 'Resubmittal Required', 'Out to Applicant', 'Issued', 'App Submitted') OR status IS NULL),
+    CONSTRAINT valid_record_type CHECK (record_type IN ('Planning Pre-Application', 'Sign Permit', 'Temporary Use Permit', 'Zoning Verification Letter', 'Development Plan', 'Conditional Use Permit', 'Historical Preservation', 'Short Term Rental License', 'Parcel Tract Map', 'Sign Program', 'Grading Perm', 'Grading Permit Maj', 'Grading Permit Min')),
     CONSTRAINT valid_phone CHECK (project_phone ~ '^\(\d{3}\) \d{3}-\d{4}$' OR project_phone IS NULL),
     CONSTRAINT valid_email CHECK (project_email ~ '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$' OR project_email IS NULL),
-    CONSTRAINT valid_quantity CHECK (quantity >= 0 OR quantity IS NULL),
     CONSTRAINT valid_pricing CHECK (
         dump_fee >= 0 AND
         ldp_fee >= 0 AND

@@ -63,17 +63,39 @@ Always handle PostGIS migrations before implementing permit business logic that 
 - **Permit Data Transformation**: Municipal format conversion, address standardization, material classification, and pricing calculation pipelines per permit requirements
 - **Construction Service Communication**: Direct Supabase real-time subscriptions, instant frontend updates, quote sheet generation from PostgreSQL
 
-**Proven Supabase Integration Patterns:**
+**Proven Supabase Integration Patterns (Based on Actual CSV Data):**
 ```python
 # Direct permit data storage (ESTABLISHED PATTERN)
 from supabase import create_client
+import pandas as pd
 
 class SupabasePermitService:
     def __init__(self):
         self.client = create_client(supabase_url, supabase_key)
 
+    def process_csv_and_store(self, csv_file_path):
+        """Process actual CSV file and store with geocoding"""
+        # Read CSV with actual column structure
+        df = pd.read_csv(csv_file_path)
+
+        permits_data = []
+        for _, row in df.iterrows():
+            permit = {
+                'site_number': row['Record Number'],        # Primary key
+                'record_type': row['Type'],                 # e.g., "Grading Perm"
+                'address': row['Address'],                  # For geocoding
+                'date_opened': row['Date Opened'],          # MM/DD/YYYY format
+                'status': row['Status'],                    # e.g., "Complete"
+                'project_city': 'San Diego County',
+                'source_portal': 'San Diego County',
+                'raw_csv_data': row.to_dict()              # Store original data
+            }
+            permits_data.append(permit)
+
+        return self.upsert_permits(permits_data)
+
     def upsert_permits(self, permits_data):
-        """Direct upsert with conflict resolution"""
+        """Direct upsert with conflict resolution on site_number"""
         return self.client.table("permits").upsert(
             permits_data, on_conflict="site_number"
         ).execute()
@@ -83,6 +105,12 @@ class SupabasePermitService:
         return self.client.rpc("get_permits_within_radius", {
             "lat": lat, "lng": lng, "radius": radius_miles
         }).execute()
+
+    def get_permits_by_type(self, record_type="Grading Perm"):
+        """Filter permits by record type from CSV"""
+        return self.client.table("permits").select("*").eq(
+            "record_type", record_type
+        ).execute()
 ```
 
 ### Municipal Business Logic Implementation

@@ -88,32 +88,48 @@ async def proven_municipal_scraping_workflow(portal_url, search_criteria):
     # 1. Navigate to portal
     await page.goto(portal_url)
 
-    # 2. Fill search form
-    await page.select_option('[name="record_type"]', search_criteria['permit_type'])
-    await page.fill('[name="date_from"]', search_criteria['date_from'])
-    await page.fill('[name="date_to"]', search_criteria['date_to'])
+    # 2. Fill search form (San Diego County specific)
+    await page.select_option('[name="record_type"]', 'Grading Perm')
+    await page.fill('[name="date_from"]', '01/01/2023')  # MM/DD/YYYY format
+    await page.fill('[name="date_to"]', '08/12/2025')
 
     # 3. Execute search
     await page.click('input[type="submit"]')
     await page.wait_for_selector('text="Download results"')
 
-    # 4. Download Excel/CSV file
+    # 4. Download CSV file (actual format: RecordList20250811.csv)
     async with page.expect_download() as download_info:
         await page.click('text="Download results"')
     download = await download_info.value
 
-    # 5. Process downloaded file
+    # 5. Process downloaded CSV file (5 columns: Record Number, Type, Address, Date Opened, Status)
     file_path = await download.path()
     permits_data = pd.read_csv(file_path)
 
-    # 6. Extract and normalize data
-    normalized_permits = normalize_permit_data(permits_data)
+    # 6. Extract data using actual CSV column names
+    normalized_permits = extract_csv_data(permits_data)
 
-    # 7. Add geocoding using Geocodio (PRIMARY)
-    geocoded_permits = add_geocodio_geocoding(normalized_permits)
+    # 7. Add geocoding using Geocodio (PRIMARY) - use Address column exactly as-is
+    geocoded_permits = add_geocodio_geocoding(normalized_permits, address_field='Address')
 
     # 8. Store in Supabase
     supabase_client.upsert_permits(geocoded_permits)
+
+def extract_csv_data(csv_df):
+    """Extract data from actual San Diego County CSV structure"""
+    permits = []
+    for _, row in csv_df.iterrows():
+        permit = {
+            'site_number': row['Record Number'],           # e.g., "PDS2025-RESALT-006012"
+            'record_type': row['Type'],                    # e.g., "Grading Perm"
+            'address': row['Address'],                     # e.g., "4580 E ONTARIO MILLS PW, ONTARIO CA 91764"
+            'date_opened': row['Date Opened'],             # e.g., "8/10/2025"
+            'status': row['Status'],                       # e.g., "Complete", "Under Review"
+            'project_city': 'San Diego County',           # Derived from portal source
+            'source_portal': 'San Diego County'
+        }
+        permits.append(permit)
+    return permits
 ```
 
 ### Advanced Scraping Architecture Implementation

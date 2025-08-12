@@ -17,7 +17,7 @@ Build a custom solution that scrapes grading permits from approximately 35–40 
 - **Database**: PostgreSQL with Supabase integration as primary solution, Firebase as fallback option
 - **Backend**: Flask, Node.js, Django, or similar frameworks
 - **Mapping**: Leaflet, Google Maps API, Mapbox for geospatial visualization
-- **APIs**: Geocodio API for address geocoding, Google Maps Distance Matrix API for drive-time/distance calculations
+- **APIs**: Geocodio API (PRIMARY) for US address geocoding, Google Maps Distance Matrix API for drive-time/distance calculations
 
 ### Technology Stack Hierarchy
 
@@ -42,12 +42,15 @@ Build a custom solution that scrapes grading permits from approximately 35–40 
    - Implement proper rate limiting and error handling
    - Extract permits, grants, grading permits, stockpile data
 
-2. **Data Processing & Storage**
+2. **Data Processing & Storage (Based on Actual CSV Structure)**
+   - **CSV Download Workflow**: Browser → Form → Search → CSV Download → Data Processing
+   - **Actual Data Fields**: Record Number, Type, Address, Date Opened, Status (5 columns)
+   - **Data Volume**: ~2,500 records with 95.4% address completion rate
    - Leverage PostgreSQL with Supabase integration for primary data storage
    - Utilize PostGIS for advanced geospatial data handling
-   - Maintain Firebase as fallback database option if needed
+   - **Geocoding Pipeline**: Use Geocodio (PRIMARY) for Address field geocoding
    - Normalize scraped data across different city formats
-   - Handle address standardization and geocoding
+   - Handle address standardization using actual CSV address format
    - Maintain data quality and validation
 
 3. **Interactive Map Visualization**
