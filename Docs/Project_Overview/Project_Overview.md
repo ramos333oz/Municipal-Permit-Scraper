@@ -17,7 +17,7 @@ Build a custom solution that scrapes grading permits from approximately 35–40 
 - **Database**: PostgreSQL with Supabase integration as primary solution, Firebase as fallback option
 - **Backend**: Flask, Node.js, Django, or similar frameworks
 - **Mapping**: Leaflet, Google Maps API, Mapbox for geospatial visualization
-- **APIs**: Google Maps API for drive-time/distance calculations
+- **APIs**: Geocodio API for address geocoding, Google Maps Distance Matrix API for drive-time/distance calculations
 
 ### Technology Stack Hierarchy
 
@@ -59,10 +59,11 @@ Build a custom solution that scrapes grading permits from approximately 35–40 
    - Leverage Next.js features (SSR, SSG, API routes) for enhanced user experience
 
 4. **Drive-Time & Distance Calculations**
-   - Calculate drive-time between points on the map
-   - Integrate with Google Maps API or similar service
-   - Provide distance calculations for route planning
-   - Support multiple destination calculations
+   - Use Geocodio API for address-to-coordinate conversion (cost-effective bulk geocoding)
+   - Use Google Maps Distance Matrix API for drive-time calculations between coordinates
+   - Provide distance calculations for route planning between multiple permit sites
+   - Support batch distance calculations for route optimization
+   - Cache distance calculations to minimize API costs
 
 5. **Manual Data Management**
    - Allow manual entry of new job sites discovered in person

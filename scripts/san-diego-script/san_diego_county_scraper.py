@@ -21,10 +21,22 @@ import random
 # Import our integration modules
 try:
     from supabase_direct_integration import SupabaseDirectIntegration
-    from geocoding_integration import add_geocoding_to_permits
     SUPABASE_AVAILABLE = True
 except ImportError:
     SUPABASE_AVAILABLE = False
+
+# Enhanced geocoding service (RECOMMENDED)
+try:
+    from enhanced_geocoding_service import EnhancedGeocodingService
+    ENHANCED_GEOCODING_AVAILABLE = True
+except ImportError:
+    ENHANCED_GEOCODING_AVAILABLE = False
+    # Fallback to basic geocoding
+    try:
+        from geocoding_integration import add_geocoding_to_permits
+        BASIC_GEOCODING_AVAILABLE = True
+    except ImportError:
+        BASIC_GEOCODING_AVAILABLE = False
 
 # Optional Airtable integration (for business users who need it)
 try:
@@ -631,9 +643,65 @@ async def main():
             logger.info("🔗 Starting Supabase direct integration (RECOMMENDED)...")
 
             try:
-                # Add geocoding information
-                logger.info("🗺️ Adding geocoding information...")
-                geocoded_permits = add_geocoding_to_permits(output_data)
+                # Add geocoding information using enhanced service
+                logger.info("🗺️ Adding enhanced geocoding information...")
+
+                if ENHANCED_GEOCODING_AVAILABLE:
+                    # Use enhanced multi-tiered geocoding service
+                    geocoder = EnhancedGeocodingService()
+                    geocoded_permits = []
+
+                    for permit in output_data:
+                        address = permit.get('address')
+                        if address:
+                            result = geocoder.geocode_address(address, min_confidence=0.7)
+                            if result:
+                                permit['coordinates'] = {
+                                    'latitude': result.latitude,
+                                    'longitude': result.longitude
+                                }
+                                permit['geocoding_accuracy'] = result.accuracy
+                                permit['geocoding_confidence'] = result.confidence
+                                permit['geocoding_source'] = result.source
+                                permit['formatted_address'] = result.formatted_address
+
+                                # Calculate distance and pricing if coordinates available
+                                if result.latitude and result.longitude:
+                                    # San Diego County depot coordinates (approximate)
+                                    depot_lat, depot_lng = 32.7157, -117.1611
+
+                                    # Calculate distance using Haversine formula
+                                    from math import radians, sin, cos, sqrt, atan2
+                                    lat1, lon1 = radians(depot_lat), radians(depot_lng)
+                                    lat2, lon2 = radians(result.latitude), radians(result.longitude)
+
+                                    dlat = lat2 - lat1
+                                    dlon = lon2 - lon1
+                                    a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+                                    c = 2 * atan2(sqrt(a), sqrt(1-a))
+                                    distance_miles = 3956 * c  # Earth radius in miles
+
+                                    # Calculate drive time and pricing
+                                    roundtrip_minutes = int((distance_miles / 35) * 60 * 2 + 10)
+                                    trucking_price = roundtrip_minutes * 1.83
+
+                                    permit['distance_from_depot_miles'] = round(distance_miles, 2)
+                                    permit['estimated_roundtrip_minutes'] = roundtrip_minutes
+                                    permit['trucking_price_per_load'] = round(trucking_price, 2)
+
+                        geocoded_permits.append(permit)
+
+                    # Get geocoding statistics
+                    stats = geocoder.get_statistics()
+                    logger.info(f"🎯 Enhanced Geocoding Stats: {stats}")
+
+                elif BASIC_GEOCODING_AVAILABLE:
+                    # Fallback to basic geocoding
+                    logger.info("⚠️ Using basic geocoding (enhanced service not available)")
+                    geocoded_permits = add_geocoding_to_permits(output_data)
+                else:
+                    logger.warning("⚠️ No geocoding service available")
+                    geocoded_permits = output_data
 
                 # Save geocoded data
                 with open('san_diego_permits_with_geocoding.json', 'w') as f:

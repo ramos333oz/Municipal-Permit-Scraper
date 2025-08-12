@@ -43,15 +43,16 @@ For every municipal scraping operation in the permit system, deliver implementat
 ### Tool Hierarchy and Decision Matrix
 
 #### Primary Tools (First Choice)
-1. **Playwright** - Modern browser automation with excellent JavaScript support
+1. **Playwright** - Modern browser automation with excellent JavaScript support **PROVEN METHOD**
    - Use for: Complex municipal portals with heavy JavaScript, dynamic content loading
    - Advantages: Native browser rendering, excellent anti-detection, modern web standards support
+   - **Proven Workflow**: Navigate → Form Interaction → Search → Excel/CSV Download → Data Extraction
 
-2. **FireCrawl** - Intelligent web crawling with built-in optimization
+3. **FireCrawl** - Intelligent web crawling with built-in optimization
    - Use for: Automated content discovery, intelligent data extraction, structured crawling
    - Advantages: Built-in anti-detection, intelligent content parsing, reduced configuration overhead
 
-3. **AgentQL** - Advanced interaction and CAPTCHA handling
+4. **AgentQL** - Advanced interaction and CAPTCHA handling
    - Use for: Sites with CAPTCHA protection, complex authentication flows, advanced anti-bot measures
    - Advantages: CAPTCHA bypass capabilities, sophisticated interaction patterns, AI-powered navigation
 
@@ -67,6 +68,53 @@ For every municipal scraping operation in the permit system, deliver implementat
 3. **Scrapy** - Large-scale scraping fallback
    - Use when: High-volume operations face rate limiting with modern tools
    - Advantages: Built-in concurrency, robust error handling, extensive middleware
+
+### Proven Browser-to-Excel Download Workflow ⭐ **RECOMMENDED METHOD**
+
+**Established Workflow for Municipal Portals:**
+1. **Browser Navigation**: Use Playwright/Browser MCP to navigate to municipal portal
+2. **Form Interaction**: Select permit types, set date ranges (e.g., 01/01/2023 to present)
+3. **Search Execution**: Submit search forms and wait for results
+4. **Excel/CSV Download**: Click "Download Results" or "Export" buttons
+5. **File Analysis**: Process downloaded files using pandas/Excel MCP tools
+6. **Data Extraction**: Extract all required fields from structured data
+7. **Database Storage**: Direct integration with Supabase (PostgreSQL/PostGIS)
+
+**Proven Implementation Pattern:**
+```python
+async def proven_municipal_scraping_workflow(portal_url, search_criteria):
+    """Proven workflow: Browser → Form → Search → Download → Extract → Store"""
+
+    # 1. Navigate to portal
+    await page.goto(portal_url)
+
+    # 2. Fill search form
+    await page.select_option('[name="record_type"]', search_criteria['permit_type'])
+    await page.fill('[name="date_from"]', search_criteria['date_from'])
+    await page.fill('[name="date_to"]', search_criteria['date_to'])
+
+    # 3. Execute search
+    await page.click('input[type="submit"]')
+    await page.wait_for_selector('text="Download results"')
+
+    # 4. Download Excel/CSV file
+    async with page.expect_download() as download_info:
+        await page.click('text="Download results"')
+    download = await download_info.value
+
+    # 5. Process downloaded file
+    file_path = await download.path()
+    permits_data = pd.read_csv(file_path)
+
+    # 6. Extract and normalize data
+    normalized_permits = normalize_permit_data(permits_data)
+
+    # 7. Add geocoding using Geocodio (PRIMARY)
+    geocoded_permits = add_geocodio_geocoding(normalized_permits)
+
+    # 8. Store in Supabase
+    supabase_client.upsert_permits(geocoded_permits)
+```
 
 ### Advanced Scraping Architecture Implementation
 For each anti-detection component, provide:
