@@ -10,7 +10,8 @@
       "mcp__playwright__browser_wait_for",
       "mcp__playwright__browser_select_option",
       "Bash(claude mcp add:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(python:*)"
     ],
     "deny": []
   }

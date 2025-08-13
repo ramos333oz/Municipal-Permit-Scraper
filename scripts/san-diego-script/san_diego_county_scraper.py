@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """
-San Diego County Accela Portal Scraper
-Production-ready Playwright script for extracting all 15 required permit fields
+San Diego County CSV-Based Permit Scraper
+Consolidated scraper implementing the proven CSV download workflow
+
+Workflow: Browser → CSV Download → Data Processing → Geocoding → Distance Calculation → Database Storage
+Architecture: Geocodio (PRIMARY) + Direct to Supabase
+Data Source: CSV files with structure: Record Number, Type, Address, Date Opened, Status
 
 Based on specifications from .claude/agents/web-scraper.md
-Targets: San Diego County Accela-based permit portal
-Extracts: All 15 required fields for LDP Quote Sheet system
 """
 
 import asyncio
@@ -13,37 +15,26 @@ import re
 import json
 import logging
 from datetime import datetime
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional
 from playwright.async_api import async_playwright, Page, Browser, BrowserContext
 from dataclasses import dataclass, asdict
 import random
+import pandas as pd
+import os
 
-# Import our integration modules
-try:
-    from supabase_direct_integration import SupabaseDirectIntegration
-    SUPABASE_AVAILABLE = True
-except ImportError:
-    SUPABASE_AVAILABLE = False
-
-# Enhanced geocoding service (RECOMMENDED)
+# Enhanced geocoding service (PRIMARY)
 try:
     from enhanced_geocoding_service import EnhancedGeocodingService
     ENHANCED_GEOCODING_AVAILABLE = True
 except ImportError:
     ENHANCED_GEOCODING_AVAILABLE = False
-    # Fallback to basic geocoding
-    try:
-        from geocoding_integration import add_geocoding_to_permits
-        BASIC_GEOCODING_AVAILABLE = True
-    except ImportError:
-        BASIC_GEOCODING_AVAILABLE = False
 
-# Optional Airtable integration (for business users who need it)
+# Supabase integration (Direct to Supabase architecture)
 try:
-    from airtable_integration import AirtableIntegration
-    AIRTABLE_AVAILABLE = True
+    from supabase import create_client
+    SUPABASE_AVAILABLE = True
 except ImportError:
-    AIRTABLE_AVAILABLE = False
+    SUPABASE_AVAILABLE = False
 
 # Configure enhanced logging
 logging.basicConfig(
@@ -95,8 +86,15 @@ class PermitData:
     scraped_at: str = None
     raw_data: Optional[Dict] = None
 
-class SanDiegoCountyScraper:
-    """Production-ready scraper for San Diego County Accela portal"""
+class SanDiegoCSVScraper:
+    """
+    CSV-based scraper for San Diego County permit portal
+
+    Implements the proven workflow: Browser → CSV Download → Data Processing →
+    Geocoding → Distance Calculation → Database Storage
+
+    Uses Geocodio as primary geocoding service and Direct to Supabase architecture.
+    """
     
     def __init__(self):
         self.base_url = "https://publicservices.sandiegocounty.gov"
@@ -144,6 +142,284 @@ class SanDiegoCountyScraper:
         """)
         
         logger.info("Browser initialized with anti-detection measures")
+    
+    async def download_permits_csv(self, search_criteria: Dict[str, str], download_path: str = "downloads") -> Optional[str]:
+        """Download CSV file containing permit data from search results with enhanced error handling"""
+        page = await self.context.new_page()
+
+        # Ensure download directory exists
+        os.makedirs(download_path, exist_ok=True)
+
+        max_retries = 2
+        retry_count = 0
+
+        while retry_count <= max_retries:
+            try:
+                logger.info(f"🔽 Starting CSV download workflow (attempt {retry_count + 1}/{max_retries + 1})...")
+
+                # Navigate to search page and perform search
+                await page.goto(self.search_url, wait_until='networkidle')
+                await self.random_delay(3, 5)
+
+                # Fill search form (reusing existing search logic)
+                await self._fill_search_form(page, search_criteria)
+
+                # Submit search and wait for results
+                await self._submit_search_form(page)
+
+                # Enhanced results waiting with timeout handling
+                try:
+                    # Wait for results table to appear
+                    await page.wait_for_selector('table', timeout=30000)
+                    logger.info("✅ Results table loaded successfully")
+                    await self.random_delay(2, 3)
+                    break  # Success, exit retry loop
+
+                except Exception as table_error:
+                    logger.warning(f"⚠️ Results table loading failed: {table_error}")
+
+                    if retry_count < max_retries:
+                        logger.info(f"🔄 Refreshing page and retrying (attempt {retry_count + 2}/{max_retries + 1})...")
+                        await page.reload(wait_until='networkidle')
+                        await self.random_delay(3, 5)
+                        retry_count += 1
+                        continue
+                    else:
+                        raise Exception("Results table failed to load after all retries")
+
+            except Exception as e:
+                if retry_count < max_retries:
+                    logger.warning(f"⚠️ Search attempt {retry_count + 1} failed: {e}")
+                    retry_count += 1
+                    continue
+                else:
+                    logger.error(f"❌ All search attempts failed: {e}")
+                    return None
+
+        # CSV Download section - moved inside try block
+        try:
+            # Look for CSV export/download button or link
+            csv_download_selectors = [
+                'a[id*="btnExport"]',  # Accela-specific export button
+                'a:has-text("Download results")',  # Exact text from portal
+                'a[href*="export"]',
+                'a[href*="csv"]',
+                'input[value*="Export"]',
+                'button:has-text("Export")',
+                'a:has-text("Download")',
+                'a:has-text("Export to CSV")',
+                '[title*="Export"]'
+            ]
+
+            download_triggered = False
+            csv_file_path = None
+
+            # Enhanced download event listener with better debugging
+            async def handle_download(download):
+                nonlocal csv_file_path
+                suggested_filename = download.suggested_filename
+                logger.info(f"📥 Download detected: {suggested_filename}")
+
+                if suggested_filename.endswith('.csv'):
+                    csv_file_path = os.path.join(download_path, suggested_filename)
+                    await download.save_as(csv_file_path)
+                    logger.info(f"✅ CSV file downloaded: {csv_file_path}")
+                else:
+                    logger.warning(f"⚠️ Non-CSV file downloaded: {suggested_filename}")
+
+            page.on("download", handle_download)
+
+            # Also listen for response events to catch any file downloads
+            async def handle_response(response):
+                if 'csv' in response.headers.get('content-type', '').lower() or \
+                   'attachment' in response.headers.get('content-disposition', '').lower():
+                    logger.info(f"📄 CSV response detected: {response.url}")
+
+            page.on("response", handle_response)
+
+            # Wait for any loading masks to disappear
+            try:
+                await page.wait_for_selector('#divGlobalLoadingMask.ACA_Hide', timeout=10000)
+                logger.info("✅ Loading mask cleared")
+            except:
+                logger.warning("⚠️ Loading mask timeout - proceeding anyway")
+
+            # Enhanced download strategy based on manual testing success
+            try:
+                # Primary strategy: Use the exact method that worked in manual testing
+                logger.info("🎯 Attempting CSV download using proven method...")
+
+                # Set up download promise to wait for download
+                async with page.expect_download() as download_info:
+                    await page.get_by_role('link', name='Download results').click()
+                    logger.info("🔄 Download click executed, waiting for file...")
+
+                # Get the download object
+                download = await download_info.value
+                suggested_filename = download.suggested_filename
+                logger.info(f"📥 Download started: {suggested_filename}")
+
+                if suggested_filename.endswith('.csv'):
+                    csv_file_path = os.path.join(download_path, suggested_filename)
+                    await download.save_as(csv_file_path)
+                    download_triggered = True
+                    logger.info(f"✅ CSV download successful using primary method: {csv_file_path}")
+                else:
+                    logger.warning(f"⚠️ Downloaded file is not CSV: {suggested_filename}")
+
+            except Exception as primary_error:
+                logger.warning(f"⚠️ Primary download method failed: {primary_error}")
+
+                # Fallback strategies using original selectors
+                for selector in csv_download_selectors:
+                    try:
+                        element = page.locator(selector).first
+                        if await element.count() > 0:
+                            logger.info(f"🎯 Attempting CSV download with fallback selector: {selector}")
+
+                            # Wait for element to be clickable (not intercepted)
+                            await element.wait_for(state='attached', timeout=5000)
+                            await self.random_delay(1, 2)
+
+                            # Force click using JavaScript if normal click fails
+                            try:
+                                await element.click(timeout=10000)
+                            except Exception as click_error:
+                                logger.warning(f"Normal click failed, trying JavaScript click: {click_error}")
+                                await page.evaluate(f"""
+                                    const element = document.querySelector('{selector}');
+                                    if (element) element.click();
+                                """)
+
+                            # Wait for download to complete
+                            await self.random_delay(3, 5)
+
+                            if csv_file_path and os.path.exists(csv_file_path):
+                                download_triggered = True
+                                break
+
+                    except Exception as e:
+                        logger.warning(f"⚠️ Download attempt failed with {selector}: {e}")
+                        continue
+            
+            if not download_triggered:
+                # Fallback: Try to find and click any export-related elements
+                logger.info("🔄 Trying fallback download methods...")
+                
+                # Look for form buttons that might trigger CSV export
+                export_buttons = await page.locator('input[type="submit"], button').all()
+                for button in export_buttons:
+                    try:
+                        text = await button.text_content() or ""
+                        value = await button.get_attribute('value') or ""
+                        
+                        if any(keyword in (text + value).lower() for keyword in ['export', 'csv', 'download']):
+                            logger.info(f"🎯 Trying export button: {text} / {value}")
+                            await button.click()
+                            await self.random_delay(3, 5)
+                            
+                            if csv_file_path and os.path.exists(csv_file_path):
+                                download_triggered = True
+                                break
+                                
+                    except Exception as e:
+                        continue
+            
+            if download_triggered and csv_file_path:
+                logger.info(f"✅ Successfully downloaded CSV file: {csv_file_path}")
+                return csv_file_path
+            else:
+                logger.error("❌ Failed to download CSV file - no download triggered")
+                return None
+                
+        except Exception as e:
+            logger.error(f"❌ Error during CSV download: {str(e)}")
+            return None
+        finally:
+            await page.close()
+    
+    async def _fill_search_form(self, page: Page, search_criteria: Dict[str, str]) -> None:
+        """Fill search form with provided criteria - Enhanced with proper selectors"""
+        # Wait for form elements to be fully loaded
+        await page.wait_for_selector('text="Record Type:"', timeout=15000)
+        await self.random_delay(2, 3)
+
+        # Select record type using the correct selector from manual testing
+        record_type = search_criteria.get('permit_type', 'Grading Perm')
+        logger.info(f"Setting record type: {record_type}")
+
+        try:
+            # Use the correct selector that works in manual testing
+            await page.get_by_label('Record Type:').select_option([record_type])
+            logger.info(f"✅ Successfully set record type: {record_type}")
+        except Exception as e:
+            logger.warning(f"Could not set record type: {e}")
+
+        # Set date range using the correct selectors from manual testing
+        if 'date_from' in search_criteria:
+            try:
+                await page.get_by_role('textbox', name='Opened From:').fill(search_criteria['date_from'])
+                logger.info(f"✅ Successfully set from date: {search_criteria['date_from']}")
+            except Exception as e:
+                logger.warning(f"Could not set from date: {e}")
+
+        if 'date_to' in search_criteria:
+            try:
+                await page.get_by_role('textbox', name='Opened To:').fill(search_criteria['date_to'])
+                logger.info(f"✅ Successfully set to date: {search_criteria['date_to']}")
+            except Exception as e:
+                logger.warning(f"Could not set to date: {e}")
+    
+    async def _submit_search_form(self, page: Page) -> None:
+        """Submit search form using enhanced strategies with loading state handling"""
+        search_submitted = False
+
+        # Enhanced search submission strategies based on manual testing
+        strategies = [
+            # Strategy 1: Use the exact selector that works in manual testing
+            lambda: page.get_by_role('link', name='Search', exact=True).click(),
+            # Strategy 2: Fallback to original selector
+            lambda: page.click('a[href*="btnNewSearch"]'),
+            # Strategy 3: Text-based search
+            lambda: page.click('text="Search"'),
+            # Strategy 4: JavaScript execution fallback
+            lambda: page.evaluate("""
+                const searchLink = document.querySelector('a[href*="btnNewSearch"]');
+                if (searchLink && searchLink.href.includes('javascript:')) {
+                    eval(searchLink.href.replace('javascript:', ''));
+                }
+            """)
+        ]
+
+        for i, strategy in enumerate(strategies, 1):
+            try:
+                await strategy()
+                logger.info(f"🔄 Search submitted using strategy {i}, waiting for results...")
+
+                # Enhanced loading state handling - wait for "Please wait..." to appear and disappear
+                try:
+                    # Wait for loading indicator to appear (indicates search started)
+                    await page.wait_for_selector('text="Please wait..."', timeout=5000)
+                    logger.info("⏳ Loading indicator detected, waiting for completion...")
+
+                    # Wait for loading indicator to disappear (indicates search completed)
+                    await page.wait_for_selector('text="Please wait..."', state='hidden', timeout=60000)
+                    logger.info("✅ Loading completed")
+                except Exception as loading_error:
+                    logger.warning(f"⚠️ Loading state detection failed: {loading_error}")
+                    # Fallback to network idle wait
+                    await page.wait_for_load_state('networkidle', timeout=30000)
+
+                search_submitted = True
+                logger.info(f"✅ Search completed successfully using strategy {i}")
+                break
+
+            except Exception as e:
+                logger.warning(f"⚠️ Search strategy {i} failed: {e}")
+                continue
+
+        if not search_submitted:
+            raise Exception("All search submission strategies failed")
     
     async def search_permits(self, search_criteria: Dict[str, str]) -> List[str]:
         """Search for permits and return list of permit URLs"""
@@ -342,143 +618,9 @@ class SanDiegoCountyScraper:
         finally:
             await page.close()
     
-    async def extract_permit_data(self, permit_url: str) -> Optional[PermitData]:
-        """Extract all 15 required fields from a single permit page"""
-        page = await self.context.new_page()
-        permit_data = PermitData()
 
-        try:
-            # Navigate to permit detail page
-            await page.goto(permit_url, wait_until='networkidle')
-            await self.random_delay(3, 5)
-
-            # Extract core permit information using enhanced selectors
-            permit_data.site_number = await self.safe_extract_text(page, [
-                'h1:has-text("Record ID")',
-                'span[id*="RecordNumber"]',
-                'td:has-text("Record Number") + td',
-                '[id*="lblRecordNumber"]',
-                'span[id*="PermitNumber"]'
-            ])
-
-            # Extract status from the page header
-            permit_data.status = await self.safe_extract_text(page, [
-                'h1:has-text("Record Status:")',
-                'span[id*="RecordStatus"]',
-                'td:has-text("Status") + td',
-                '[id*="lblStatus"]',
-                'span[id*="PermitStatus"]'
-            ])
-
-            # Clean up status text (remove "Record Status:" prefix)
-            if permit_data.status and "Record Status:" in permit_data.status:
-                permit_data.status = permit_data.status.replace("Record Status:", "").strip()
-
-            permit_data.project_city = "San Diego County"  # Default for this portal
-
-            # Extract contact information
-            permit_data.project_company = await self.safe_extract_text(page, [
-                'span[id*="ApplicantName"]',
-                'td:has-text("Applicant") + td',
-                '[id*="lblApplicant"]',
-                'span[id*="CompanyName"]'
-            ])
-
-            permit_data.project_contact = await self.safe_extract_text(page, [
-                'span[id*="ContactName"]',
-                'td:has-text("Contact") + td',
-                '[id*="lblContact"]',
-                'span[id*="PrimaryContact"]'
-            ])
-
-            # Extract and standardize phone number
-            raw_phone = await self.safe_extract_text(page, [
-                'span[id*="Phone"]',
-                'td:has-text("Phone") + td',
-                '[id*="lblPhone"]',
-                'span[id*="ContactPhone"]'
-            ])
-            permit_data.project_phone = self.standardize_phone(raw_phone)
-
-            permit_data.project_email = await self.safe_extract_text(page, [
-                'span[id*="Email"]',
-                'td:has-text("Email") + td',
-                '[id*="lblEmail"]',
-                'span[id*="ContactEmail"]'
-            ])
-
-            # Extract address information (critical for geocoding)
-            address = await self.safe_extract_text(page, [
-                'span[id*="Address"]',
-                'td:has-text("Address") + td',
-                '[id*="lblAddress"]',
-                'span[id*="SiteAddress"]',
-                'span[id*="ProjectAddress"]'
-            ])
-
-            # Store address in the raw_data for now, will be processed later
-            if address:
-                permit_data.raw_data = permit_data.raw_data or {}
-                permit_data.raw_data['address'] = address
-
-            # Extract project description for material and quantity analysis
-            project_description = await self.safe_extract_text(page, [
-                'span[id*="WorkDescription"]',
-                'td:has-text("Work Description") + td',
-                '[id*="lblDescription"]',
-                'span[id*="ProjectDescription"]',
-                'h1:has-text("Project Description:")'
-            ])
-
-            permit_data.notes = project_description
-
-            # Extract material type and quantity using NLP patterns
-            if project_description:
-                permit_data.material_description = self.extract_material_type(project_description)
-                permit_data.quantity = self.extract_quantity(project_description)
-
-            # Set metadata
-            permit_data.scraped_at = datetime.now().isoformat()
-            permit_data.raw_data = {
-                'url': permit_url,
-                'page_title': await page.title(),
-                'extraction_timestamp': permit_data.scraped_at
-            }
-
-            logger.info(f"Successfully extracted data for permit: {permit_data.site_number}")
-            return permit_data
-
-        except Exception as e:
-            logger.error(f"Error extracting permit data from {permit_url}: {str(e)}")
-            return None
-        finally:
-            await page.close()
     
-    async def safe_extract_text(self, page: Page, selectors: List[str]) -> Optional[str]:
-        """Safely extract text using multiple selector fallbacks"""
-        for selector in selectors:
-            try:
-                element = page.locator(selector).first
-                if await element.count() > 0:
-                    text = await element.text_content()
-                    if text and text.strip():
-                        return text.strip()
-            except Exception:
-                continue
-        return None
 
-    async def safe_extract_text_iframe(self, iframe, selectors: List[str]) -> Optional[str]:
-        """Safely extract text from iframe using multiple selector fallbacks"""
-        for selector in selectors:
-            try:
-                element = iframe.locator(selector).first
-                if await element.count() > 0:
-                    text = await element.text_content()
-                    if text and text.strip():
-                        return text.strip()
-            except Exception:
-                continue
-        return None
     
     def standardize_phone(self, phone_text: Optional[str]) -> Optional[str]:
         """Standardize phone number to (XXX) XXX-XXXX format"""
@@ -546,46 +688,322 @@ class SanDiegoCountyScraper:
         
         return None  # No quantity found
     
+    def process_csv_file(self, csv_path: str) -> List[PermitData]:
+        """Process CSV file and convert to PermitData objects"""
+        logger.info(f"📊 Processing CSV file: {csv_path}")
+        
+        try:
+            # Read CSV file
+            df = pd.read_csv(csv_path)
+            logger.info(f"✅ CSV loaded: {len(df)} records, {len(df.columns)} columns")
+            
+            permits = []
+            processed_count = 0
+            
+            for _, row in df.iterrows():
+                try:
+                    permit = PermitData(
+                        # Core fields from CSV (actual structure discovered in manual testing)
+                        site_number=str(row.get('Record ID', '')).strip() or None,  # Correct column name
+                        status=str(row.get('Record Status', '')).strip() or None,   # Correct column name
+                        project_city='San Diego County',
+                        notes=str(row.get('Short Notes', '')).strip() or None,     # Correct column name
+
+                        # Address information (critical for geocoding)
+                        address=str(row.get('Address', '')).strip() or None,       # Confirmed column name
+                        opened_date=str(row.get('Opened Date', '')).strip() or None, # Correct column name
+
+                        # Extract project name from correct field
+                        project_name=str(row.get('Project Name', '')).strip() or None, # Correct column name
+                        
+                        # Placeholder fields for future enhancement
+                        project_company=None,
+                        project_contact=None,
+                        project_phone=None,
+                        project_email=None,
+                        quantity=None,
+                        material_description=None,
+                        
+                        # Pricing fields (to be calculated later)
+                        dump_fee=0.0,
+                        ldp_fee=0.0,
+                        trucking_price_per_load=None,
+                        total_price_per_load=None,
+                        
+                        # Metadata
+                        source_portal='San Diego County',
+                        scraped_at=datetime.now().isoformat(),
+                        raw_data={
+                            'original_csv_row': row.to_dict(),
+                            'processing_timestamp': datetime.now().isoformat()
+                        }
+                    )
+                    
+                    # Clean empty strings to None
+                    if permit.site_number == '':
+                        permit.site_number = None
+                    if permit.status == '':
+                        permit.status = None
+                    if permit.address == '':
+                        permit.address = None
+                        
+                    permits.append(permit)
+                    processed_count += 1
+                    
+                except Exception as e:
+                    logger.warning(f"⚠️ Error processing CSV row: {e}")
+                    continue
+            
+            logger.info(f"✅ Successfully processed {processed_count} permits from CSV")
+            
+            # Validate processed data
+            validation_stats = self._validate_csv_permits(permits)
+            logger.info(f"📊 Validation: {validation_stats}")
+            
+            return permits
+            
+        except Exception as e:
+            logger.error(f"❌ Error processing CSV file: {e}")
+            return []
+    
+    def _validate_csv_permits(self, permits: List[PermitData]) -> Dict:
+        """Validate processed permit data from CSV"""
+        stats = {
+            'total_permits': len(permits),
+            'with_site_number': 0,
+            'with_address': 0,
+            'with_status': 0,
+            'with_opened_date': 0,
+            'ready_for_geocoding': 0
+        }
+        
+        for permit in permits:
+            if permit.site_number:
+                stats['with_site_number'] += 1
+            if permit.address:
+                stats['with_address'] += 1
+            if permit.status:
+                stats['with_status'] += 1
+            if permit.opened_date:
+                stats['with_opened_date'] += 1
+            if permit.address and permit.site_number:
+                stats['ready_for_geocoding'] += 1
+        
+        # Calculate percentages
+        total = stats['total_permits']
+        if total > 0:
+            for key in ['with_site_number', 'with_address', 'with_status', 'with_opened_date', 'ready_for_geocoding']:
+                percentage = (stats[key] / total) * 100
+                stats[f'{key}_percentage'] = round(percentage, 1)
+        
+        return stats
+    
+    async def run_complete_workflow(self, search_criteria: Dict[str, str], download_path: str = "downloads") -> List[PermitData]:
+        """Complete workflow: Download CSV -> Process -> Geocode -> Calculate Distances"""
+        logger.info("🚀 Starting complete San Diego County permit workflow...")
+        
+        try:
+            await self.initialize_browser()
+            
+            # Step 1: Download CSV file
+            logger.info("📥 Step 1: Downloading CSV file...")
+            csv_file_path = await self.download_permits_csv(search_criteria, download_path)
+            
+            if not csv_file_path or not os.path.exists(csv_file_path):
+                logger.error("❌ CSV download failed - workflow cannot continue without CSV data")
+                return []
+
+            # Step 2: Process CSV data
+            logger.info("🔄 Step 2: Processing CSV data...")
+            permits = self.process_csv_file(csv_file_path)
+
+            if not permits:
+                logger.error("❌ CSV processing failed - no valid permit data extracted")
+                return []
+            
+            # Step 3: Enhanced geocoding (if available)
+            logger.info("🗺️ Step 3: Adding geocoding information...")
+            geocoded_permits = await self._add_geocoding_to_permits(permits)
+            
+            # Step 4: Calculate distances and pricing
+            logger.info("📏 Step 4: Calculating distances and pricing...")
+            enhanced_permits = self._calculate_distances_and_pricing(geocoded_permits)
+            
+            # Step 5: Store in database (if available)
+            if SUPABASE_AVAILABLE:
+                logger.info("💾 Step 5: Storing in Supabase...")
+                await self._store_permits_in_supabase(enhanced_permits)
+            
+            logger.info(f"✅ Complete workflow finished: {len(enhanced_permits)} permits processed")
+            return enhanced_permits
+            
+        except Exception as e:
+            logger.error(f"❌ Complete workflow failed: {e}")
+            return []
+        finally:
+            await self.cleanup()
+    
+    async def _add_geocoding_to_permits(self, permits: List[PermitData]) -> List[PermitData]:
+        """Add geocoding information to permits using enhanced service"""
+        if not ENHANCED_GEOCODING_AVAILABLE:
+            logger.warning("⚠️ Enhanced geocoding service not available")
+            return permits
+            
+        try:
+            from enhanced_geocoding_service import EnhancedGeocodingService
+            geocoder = EnhancedGeocodingService()
+            
+            geocoded_permits = []
+            
+            for permit in permits:
+                if permit.address:
+                    try:
+                        result = geocoder.geocode_address(permit.address, min_confidence=0.7)
+                        if result:
+                            # Update permit with geocoding information
+                            if not permit.raw_data:
+                                permit.raw_data = {}
+                            
+                            permit.raw_data.update({
+                                'coordinates': {
+                                    'latitude': result.latitude,
+                                    'longitude': result.longitude
+                                },
+                                'geocoding_accuracy': result.accuracy,
+                                'geocoding_confidence': result.confidence,
+                                'geocoding_source': result.source,
+                                'formatted_address': result.formatted_address
+                            })
+                            
+                            logger.info(f"✅ Geocoded: {permit.site_number} - {result.formatted_address}")
+                        else:
+                            logger.warning(f"⚠️ Geocoding failed for: {permit.site_number} - {permit.address}")
+                    except Exception as e:
+                        logger.warning(f"⚠️ Geocoding error for {permit.site_number}: {e}")
+                
+                geocoded_permits.append(permit)
+            
+            # Get geocoding statistics
+            stats = geocoder.get_statistics()
+            logger.info(f"📊 Geocoding complete - Statistics: {stats}")
+            
+            return geocoded_permits
+            
+        except Exception as e:
+            logger.error(f"❌ Geocoding process failed: {e}")
+            return permits
+    
+    def _calculate_distances_and_pricing(self, permits: List[PermitData]) -> List[PermitData]:
+        """Calculate distances from depot and pricing information"""
+        logger.info("📏 Calculating distances and pricing...")
+        
+        # San Diego County depot coordinates (approximate)
+        depot_lat, depot_lng = 32.7157, -117.1611
+        
+        enhanced_permits = []
+        
+        for permit in permits:
+            try:
+                # Check if permit has geocoding coordinates
+                if (permit.raw_data and 
+                    'coordinates' in permit.raw_data and 
+                    permit.raw_data['coordinates']):
+                    
+                    coords = permit.raw_data['coordinates']
+                    lat = coords.get('latitude')
+                    lng = coords.get('longitude')
+                    
+                    if lat and lng:
+                        # Calculate distance using Haversine formula
+                        from math import radians, sin, cos, sqrt, atan2
+                        
+                        lat1, lon1 = radians(depot_lat), radians(depot_lng)
+                        lat2, lon2 = radians(lat), radians(lng)
+                        
+                        dlat = lat2 - lat1
+                        dlon = lon2 - lon1
+                        a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+                        c = 2 * atan2(sqrt(a), sqrt(1-a))
+                        distance_miles = 3956 * c  # Earth radius in miles
+                        
+                        # Calculate drive time and pricing using LDP formula
+                        # Estimated drive time: distance / average speed (35 mph) * 2 (roundtrip) + 10 minutes
+                        roundtrip_minutes = int((distance_miles / 35) * 60 * 2 + 10)
+                        
+                        # LDP pricing formula: (Roundtrip Minutes × 1.83) + Added Minutes
+                        added_minutes = 5  # Default added minutes
+                        trucking_price = (roundtrip_minutes * 1.83) + added_minutes
+                        
+                        # Update permit with calculated values
+                        if not permit.raw_data:
+                            permit.raw_data = {}
+                            
+                        permit.raw_data.update({
+                            'distance_from_depot_miles': round(distance_miles, 2),
+                            'estimated_roundtrip_minutes': roundtrip_minutes,
+                            'added_minutes': added_minutes
+                        })
+                        
+                        # Update pricing fields in permit
+                        permit.trucking_price_per_load = round(trucking_price, 2)
+                        
+                        # Calculate total price (assuming default dump fee and LDP fee)
+                        dump_fee = permit.dump_fee or 0.0
+                        ldp_fee = permit.ldp_fee or 0.0
+                        permit.total_price_per_load = round(dump_fee + trucking_price + ldp_fee, 2)
+                        
+                        logger.debug(f"✅ Distance calculated for {permit.site_number}: {distance_miles:.1f} mi, {roundtrip_minutes} min, ${trucking_price:.2f}")
+                    
+                enhanced_permits.append(permit)
+                
+            except Exception as e:
+                logger.warning(f"⚠️ Distance calculation failed for {permit.site_number}: {e}")
+                enhanced_permits.append(permit)
+                continue
+        
+        logger.info(f"✅ Distance calculations complete for {len(enhanced_permits)} permits")
+        return enhanced_permits
+    
+    async def _store_permits_in_supabase(self, permits: List[PermitData]) -> Dict:
+        """Store permits in Supabase database using direct client"""
+        if not SUPABASE_AVAILABLE:
+            logger.warning("⚠️ Supabase integration not available")
+            return {'success': 0, 'failed': len(permits)}
+
+        try:
+            # Get Supabase credentials from environment
+            supabase_url = os.getenv('SUPABASE_URL')
+            supabase_key = os.getenv('SUPABASE_ANON_KEY')
+
+            if not supabase_url or not supabase_key:
+                logger.error("❌ Supabase credentials not found in environment")
+                return {'success': 0, 'failed': len(permits)}
+
+            # Create Supabase client
+            supabase = create_client(supabase_url, supabase_key)
+
+            # Convert permits to dictionary format
+            permits_data = [asdict(permit) for permit in permits]
+
+            # Upsert permits to database
+            result = supabase.table("permits").upsert(
+                permits_data, on_conflict="site_number"
+            ).execute()
+
+            success_count = len(result.data) if result.data else 0
+            logger.info(f"📤 Supabase storage: {success_count} permits stored successfully")
+            return {'success': success_count, 'failed': len(permits) - success_count}
+
+        except Exception as e:
+            logger.error(f"❌ Supabase storage failed: {e}")
+            return {'success': 0, 'failed': len(permits)}
+    
     async def random_delay(self, min_seconds: float, max_seconds: float) -> None:
         """Add random delay to mimic human behavior"""
         delay = random.uniform(min_seconds, max_seconds)
         await asyncio.sleep(delay)
     
-    async def scrape_permits(self, search_criteria: Dict[str, str], max_permits: int = 50) -> List[PermitData]:
-        """Main scraping method - extract permits based on search criteria"""
-        try:
-            await self.initialize_browser()
-            
-            # Search for permits
-            permit_urls = await self.search_permits(search_criteria)
-            
-            if not permit_urls:
-                logger.warning("No permits found matching search criteria")
-                return []
-            
-            # Limit number of permits to scrape
-            permit_urls = permit_urls[:max_permits]
-            
-            # Extract data from each permit
-            extracted_permits = []
-            for i, url in enumerate(permit_urls, 1):
-                logger.info(f"Processing permit {i}/{len(permit_urls)}: {url}")
-                
-                permit_data = await self.extract_permit_data(url)
-                if permit_data and permit_data.site_number:
-                    extracted_permits.append(permit_data)
-                
-                # Add delay between requests
-                await self.random_delay(3, 7)
-            
-            logger.info(f"Successfully extracted {len(extracted_permits)} permits")
-            return extracted_permits
-            
-        except Exception as e:
-            logger.error(f"Error in scrape_permits: {str(e)}")
-            return []
-        finally:
-            await self.cleanup()
+
     
     async def cleanup(self) -> None:
         """Clean up browser resources"""
@@ -596,140 +1014,120 @@ class SanDiegoCountyScraper:
         logger.info("Browser cleanup completed")
 
 async def main():
-    """Enhanced testing of the San Diego County scraper"""
-    logger.info("=== Starting San Diego County Permit Scraper Test ===")
-    scraper = SanDiegoCountyScraper()
+    """Enhanced testing of the San Diego County scraper with complete workflow"""
+    logger.info("🚀 === Starting San Diego County Complete Permit Workflow Test ===")
+    scraper = SanDiegoCSVScraper()
 
     # Define search criteria for comprehensive data collection (2023 to present)
     search_criteria = {
         'permit_type': 'Grading Perm',  # Updated to use correct Accela value
         'date_from': '01/01/2023',     # MM/DD/YYYY format for Accela - comprehensive historical data
-        'date_to': '08/11/2025'        # Current date range
+        'date_to': '08/12/2025'        # Current date range
     }
 
-    logger.info(f"Search criteria: {search_criteria}")
+    logger.info(f"🔍 Search criteria: {search_criteria}")
 
     try:
-        # Scrape permits (comprehensive collection - all available permits)
-        logger.info("Starting comprehensive permit scraping process...")
-        permits = await scraper.scrape_permits(search_criteria, max_permits=50)  # Increased limit for comprehensive data
+        # Run the complete workflow (CSV download + processing + geocoding + distances)
+        logger.info("🚀 Starting complete workflow...")
+        permits = await scraper.run_complete_workflow(search_criteria, download_path="downloads")
 
         if permits:
-            logger.info(f"✅ SUCCESS: Found {len(permits)} permits!")
-            for i, permit in enumerate(permits, 1):
-                logger.info(f"Permit {i}: {permit.site_number} - {permit.status}")
+            logger.info(f"✅ SUCCESS: Complete workflow processed {len(permits)} permits!")
+            
+            # Summary statistics
+            geocoded_count = sum(1 for p in permits if p.raw_data and 'coordinates' in p.raw_data)
+            priced_count = sum(1 for p in permits if p.trucking_price_per_load)
+            
+            logger.info(f"📊 Workflow Summary:")
+            logger.info(f"   📄 Total permits: {len(permits)}")
+            logger.info(f"   🗺️ Geocoded: {geocoded_count}")
+            logger.info(f"   💰 Priced: {priced_count}")
+            
+            # Display first few permits
+            for i, permit in enumerate(permits[:5], 1):
+                price_info = f"${permit.trucking_price_per_load:.2f}" if permit.trucking_price_per_load else "No pricing"
+                coords_info = ""
+                if permit.raw_data and 'coordinates' in permit.raw_data:
+                    coords = permit.raw_data['coordinates']
+                    coords_info = f"({coords['latitude']:.4f}, {coords['longitude']:.4f})"
+                
+                logger.info(f"   {i}. {permit.site_number}: {permit.status} - {price_info} {coords_info}")
         else:
-            logger.warning("⚠️ No permits found - this could be normal if no permits match criteria")
+            logger.warning("⚠️ No permits processed - this could indicate CSV download issues")
 
     except Exception as e:
-        logger.error(f"❌ FAILED: Error during scraping: {e}")
+        logger.error(f"❌ FAILED: Error during complete workflow: {e}")
         raise
     
     # Output results
     if permits:
-        print(f"\nExtracted {len(permits)} permits:")
+        print(f"\n✅ Complete Workflow Results: {len(permits)} permits processed")
+        
+        # Save comprehensive results
+        output_data = []
         for permit in permits:
-            print(f"- {permit.site_number}: {permit.status} ({permit.material_description})")
-            
-        # Save to JSON file
-        output_data = [asdict(permit) for permit in permits]
-        with open('san_diego_permits.json', 'w') as f:
+            permit_dict = asdict(permit)
+            output_data.append(permit_dict)
+        
+        # Save to JSON files
+        with open('san_diego_complete_workflow_results.json', 'w') as f:
             json.dump(output_data, f, indent=2, default=str)
+        
+        # Save CSV summary for easy viewing
+        summary_data = []
+        for permit in permits:
+            summary = {
+                'site_number': permit.site_number,
+                'status': permit.status,
+                'address': permit.address,
+                'opened_date': permit.opened_date,
+                'project_name': permit.project_name,
+                'trucking_price_per_load': permit.trucking_price_per_load,
+                'total_price_per_load': permit.total_price_per_load,
+                'geocoded': bool(permit.raw_data and 'coordinates' in permit.raw_data),
+                'distance_miles': permit.raw_data.get('distance_from_depot_miles') if permit.raw_data else None,
+                'roundtrip_minutes': permit.raw_data.get('estimated_roundtrip_minutes') if permit.raw_data else None
+            }
+            summary_data.append(summary)
+        
+        # Save summary as CSV
+        df_summary = pd.DataFrame(summary_data)
+        df_summary.to_csv('san_diego_workflow_summary.csv', index=False)
 
-        print(f"\nData saved to san_diego_permits.json")
+        print(f"📁 Files saved:")
+        print(f"   📄 Complete data: san_diego_complete_workflow_results.json")
+        print(f"   📊 Summary: san_diego_workflow_summary.csv")
+        
+        # Print workflow statistics
+        geocoded_count = sum(1 for p in permits if p.raw_data and 'coordinates' in p.raw_data)
+        priced_count = sum(1 for p in permits if p.trucking_price_per_load)
+        
+        print(f"\n📊 Workflow Statistics:")
+        print(f"   📄 Total permits processed: {len(permits)}")
+        print(f"   🗺️ Successfully geocoded: {geocoded_count} ({geocoded_count/len(permits)*100:.1f}%)")
+        print(f"   💰 Pricing calculated: {priced_count} ({priced_count/len(permits)*100:.1f}%)")
+        
+        if geocoded_count > 0:
+            distances = [p.raw_data.get('distance_from_depot_miles', 0) for p in permits 
+                        if p.raw_data and 'distance_from_depot_miles' in p.raw_data]
+            if distances:
+                print(f"   📏 Distance range: {min(distances):.1f} - {max(distances):.1f} miles")
+                print(f"   📏 Average distance: {sum(distances)/len(distances):.1f} miles")
+        
+        if priced_count > 0:
+            prices = [p.trucking_price_per_load for p in permits if p.trucking_price_per_load]
+            if prices:
+                print(f"   💵 Price range: ${min(prices):.2f} - ${max(prices):.2f}")
+                print(f"   💵 Average price: ${sum(prices)/len(prices):.2f}")
 
-        # Enhanced integrations - Recommended: Direct to Supabase
-        if SUPABASE_AVAILABLE:
-            logger.info("🔗 Starting Supabase direct integration (RECOMMENDED)...")
-
-            try:
-                # Add geocoding information using enhanced service
-                logger.info("🗺️ Adding enhanced geocoding information...")
-
-                if ENHANCED_GEOCODING_AVAILABLE:
-                    # Use enhanced multi-tiered geocoding service
-                    geocoder = EnhancedGeocodingService()
-                    geocoded_permits = []
-
-                    for permit in output_data:
-                        address = permit.get('address')
-                        if address:
-                            result = geocoder.geocode_address(address, min_confidence=0.7)
-                            if result:
-                                permit['coordinates'] = {
-                                    'latitude': result.latitude,
-                                    'longitude': result.longitude
-                                }
-                                permit['geocoding_accuracy'] = result.accuracy
-                                permit['geocoding_confidence'] = result.confidence
-                                permit['geocoding_source'] = result.source
-                                permit['formatted_address'] = result.formatted_address
-
-                                # Calculate distance and pricing if coordinates available
-                                if result.latitude and result.longitude:
-                                    # San Diego County depot coordinates (approximate)
-                                    depot_lat, depot_lng = 32.7157, -117.1611
-
-                                    # Calculate distance using Haversine formula
-                                    from math import radians, sin, cos, sqrt, atan2
-                                    lat1, lon1 = radians(depot_lat), radians(depot_lng)
-                                    lat2, lon2 = radians(result.latitude), radians(result.longitude)
-
-                                    dlat = lat2 - lat1
-                                    dlon = lon2 - lon1
-                                    a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
-                                    c = 2 * atan2(sqrt(a), sqrt(1-a))
-                                    distance_miles = 3956 * c  # Earth radius in miles
-
-                                    # Calculate drive time and pricing
-                                    roundtrip_minutes = int((distance_miles / 35) * 60 * 2 + 10)
-                                    trucking_price = roundtrip_minutes * 1.83
-
-                                    permit['distance_from_depot_miles'] = round(distance_miles, 2)
-                                    permit['estimated_roundtrip_minutes'] = roundtrip_minutes
-                                    permit['trucking_price_per_load'] = round(trucking_price, 2)
-
-                        geocoded_permits.append(permit)
-
-                    # Get geocoding statistics
-                    stats = geocoder.get_statistics()
-                    logger.info(f"🎯 Enhanced Geocoding Stats: {stats}")
-
-                elif BASIC_GEOCODING_AVAILABLE:
-                    # Fallback to basic geocoding
-                    logger.info("⚠️ Using basic geocoding (enhanced service not available)")
-                    geocoded_permits = add_geocoding_to_permits(output_data)
-                else:
-                    logger.warning("⚠️ No geocoding service available")
-                    geocoded_permits = output_data
-
-                # Save geocoded data
-                with open('san_diego_permits_with_geocoding.json', 'w') as f:
-                    json.dump(geocoded_permits, f, indent=2, default=str)
-                logger.info("💾 Saved geocoded data to san_diego_permits_with_geocoding.json")
-
-                # Upload directly to Supabase (RECOMMENDED APPROACH)
-                logger.info("📤 Uploading directly to Supabase...")
-                supabase = SupabaseDirectIntegration()
-                results = supabase.batch_upsert_permits(geocoded_permits)
-
-                logger.info("📊 Supabase Integration Summary:")
-                logger.info(f"   🗺️ Geocoded: {sum(1 for p in geocoded_permits if 'coordinates' in p)}/{len(geocoded_permits)} permits")
-                logger.info(f"   📤 Supabase upserts: {results['success']} success, {results['failed']} failed")
-
-                # Optional: Also upload to Airtable for business users (if available)
-                if AIRTABLE_AVAILABLE:
-                    logger.info("📤 Optional: Also uploading to Airtable for business users...")
-                    airtable = AirtableIntegration()
-                    airtable_results = airtable.batch_upload_permits(geocoded_permits)
-                    logger.info(f"   📤 Airtable uploads: {airtable_results['success']} success, {airtable_results['failed']} failed")
-
-            except Exception as e:
-                logger.error(f"❌ Integration error: {e}")
-        else:
-            logger.info("⚠️ Supabase integration not available. Install supabase client: pip install supabase")
     else:
-        print("No permits extracted")
+        print("❌ No permits processed")
+
+    print(f"\n🎉 Complete workflow test finished!")
+    print(f"🔗 Integration status:")
+    print(f"   📊 Supabase: {'✅ Available' if SUPABASE_AVAILABLE else '❌ Not available'}")
+    print(f"   🗺️ Enhanced Geocoding: {'✅ Available' if ENHANCED_GEOCODING_AVAILABLE else '❌ Not available'}")
 
 if __name__ == "__main__":
     asyncio.run(main())
