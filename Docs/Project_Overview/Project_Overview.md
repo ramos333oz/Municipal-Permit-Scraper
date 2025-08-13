@@ -17,7 +17,7 @@ Build a custom solution that scrapes grading permits from approximately 35–40 
 - **Database**: PostgreSQL with Supabase integration as primary solution, Firebase as fallback option
 - **Backend**: Flask, Node.js, Django, or similar frameworks
 - **Mapping**: Leaflet, Google Maps API, Mapbox for geospatial visualization
-- **APIs**: Google Maps API for drive-time/distance calculations
+- **APIs**: Geocodio API (PRIMARY) for US address geocoding, Google Maps Distance Matrix API for drive-time/distance calculations
 
 ### Technology Stack Hierarchy
 
@@ -42,12 +42,15 @@ Build a custom solution that scrapes grading permits from approximately 35–40 
    - Implement proper rate limiting and error handling
    - Extract permits, grants, grading permits, stockpile data
 
-2. **Data Processing & Storage**
+2. **Data Processing & Storage (Based on Actual CSV Structure)**
+   - **CSV Download Workflow**: Browser → Form → Search → CSV Download → Data Processing
+   - **Actual Data Fields**: Record Number, Type, Address, Date Opened, Status (5 columns)
+   - **Data Volume**: ~2,500 records with 95.4% address completion rate
    - Leverage PostgreSQL with Supabase integration for primary data storage
    - Utilize PostGIS for advanced geospatial data handling
-   - Maintain Firebase as fallback database option if needed
+   - **Geocoding Pipeline**: Use Geocodio (PRIMARY) for Address field geocoding
    - Normalize scraped data across different city formats
-   - Handle address standardization and geocoding
+   - Handle address standardization using actual CSV address format
    - Maintain data quality and validation
 
 3. **Interactive Map Visualization**
@@ -59,10 +62,11 @@ Build a custom solution that scrapes grading permits from approximately 35–40 
    - Leverage Next.js features (SSR, SSG, API routes) for enhanced user experience
 
 4. **Drive-Time & Distance Calculations**
-   - Calculate drive-time between points on the map
-   - Integrate with Google Maps API or similar service
-   - Provide distance calculations for route planning
-   - Support multiple destination calculations
+   - Use Geocodio API for address-to-coordinate conversion (cost-effective bulk geocoding)
+   - Use Google Maps Distance Matrix API for drive-time calculations between coordinates
+   - Provide distance calculations for route planning between multiple permit sites
+   - Support batch distance calculations for route optimization
+   - Cache distance calculations to minimize API costs
 
 5. **Manual Data Management**
    - Allow manual entry of new job sites discovered in person
