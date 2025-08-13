@@ -73,12 +73,19 @@ For every municipal scraping operation in the permit system, deliver implementat
 
 **Established Workflow for Municipal Portals:**
 1. **Browser Navigation**: Use Playwright/Browser MCP to navigate to municipal portal
-2. **Form Interaction**: Select permit types, set date ranges (e.g., 01/01/2023 to present)
+2. **Form Interaction**: Select permit types, set date ranges (e.g., 01/01/2023 to present) - **DATE-ONLY FILTERING STANDARD**
 3. **Search Execution**: Submit search forms and wait for results
 4. **Excel/CSV Download**: Click "Download Results" or "Export" buttons
 5. **File Analysis**: Process downloaded files using pandas/Excel MCP tools
 6. **Data Extraction**: Extract all required fields from structured data
 7. **Database Storage**: Direct integration with Supabase (PostgreSQL/PostGIS)
+
+**Data Collection Filtering Standards:**
+- **PRIMARY RULE**: Use DATE-ONLY filtering to maximize data collection
+- **AVOID**: Record type filters, status filters, geographic filters, permit value ranges, application type restrictions
+- **RECORD TYPE**: Leave dropdown at default "--Select--" to capture ALL permit types
+- **RATIONALE**: Any additional filters reduce dataset size and may miss valuable permit data
+- **DATE RANGE**: Use broad ranges (e.g., 01/01/2023 to current date) for comprehensive coverage
 
 **Proven Implementation Pattern:**
 ```python
@@ -88,10 +95,11 @@ async def proven_municipal_scraping_workflow(portal_url, search_criteria):
     # 1. Navigate to portal
     await page.goto(portal_url)
 
-    # 2. Fill search form (San Diego County specific)
-    await page.select_option('[name="record_type"]', 'Grading Perm')
-    await page.fill('[name="date_from"]', '01/01/2023')  # MM/DD/YYYY format
-    await page.fill('[name="date_to"]', '08/12/2025')
+    # 2. Fill search form (DATE-ONLY FILTERING - San Diego County specific)
+    # LEAVE RECORD TYPE AT DEFAULT "--Select--" to capture ALL permit types
+    await page.fill('[name="date_from"]', '01/01/2023')  # MM/DD/YYYY format - broad range
+    await page.fill('[name="date_to"]', '08/13/2025')    # Current date - maximum coverage
+    # NO OTHER FILTERS: Record type, status, geographic, value, or application type filters avoided
 
     # 3. Execute search
     await page.click('input[type="submit"]')
@@ -121,7 +129,7 @@ def extract_csv_data(csv_df):
     for _, row in csv_df.iterrows():
         permit = {
             'site_number': row['Record Number'],           # e.g., "PDS2025-RESALT-006012"
-            'record_type': row['Type'],                    # e.g., "Grading Perm"
+            'record_type': row['Type'],                    # e.g., "Grading Perm", "Major Use Permit", "Site Plan", etc.
             'address': row['Address'],                     # e.g., "4580 E ONTARIO MILLS PW, ONTARIO CA 91764"
             'date_opened': row['Date Opened'],             # e.g., "8/10/2025"
             'status': row['Status'],                       # e.g., "Complete", "Under Review"
