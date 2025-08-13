@@ -144,14 +144,18 @@ class SanDiegoCSVScraper:
         logger.info("Browser initialized with anti-detection measures")
     
     async def download_permits_csv(self, search_criteria: Dict[str, str], download_path: str = "downloads") -> Optional[str]:
-        """Download CSV file containing permit data from search results with enhanced error handling"""
+        """
+        Download CSV file with enhanced robustness for overlay/loading mask interference
+        Implements retry logic with exponential backoff and page refresh strategies
+        """
         page = await self.context.new_page()
 
         # Ensure download directory exists
         os.makedirs(download_path, exist_ok=True)
 
-        max_retries = 2
+        max_retries = 3  # Increased retries for robustness
         retry_count = 0
+        base_delay = 2  # Base delay for exponential backoff
 
         while retry_count <= max_retries:
             try:
@@ -190,10 +194,21 @@ class SanDiegoCSVScraper:
             except Exception as e:
                 if retry_count < max_retries:
                     logger.warning(f"⚠️ Search attempt {retry_count + 1} failed: {e}")
+
+                    # Exponential backoff with page refresh strategy
+                    delay = base_delay * (2 ** retry_count)
+                    logger.info(f"🔄 Waiting {delay} seconds before retry with page refresh...")
+                    await asyncio.sleep(delay)
+
+                    # Page refresh strategy: reload and reapply filters
+                    logger.info("🔄 Refreshing page and reapplying date-only filters...")
+                    await page.reload(wait_until='networkidle')
+                    await self.random_delay(3, 5)
+
                     retry_count += 1
                     continue
                 else:
-                    logger.error(f"❌ All search attempts failed: {e}")
+                    logger.error(f"❌ All search attempts failed after {max_retries + 1} attempts: {e}")
                     return None
 
         # CSV Download section - moved inside try block
@@ -237,12 +252,8 @@ class SanDiegoCSVScraper:
 
             page.on("response", handle_response)
 
-            # Wait for any loading masks to disappear
-            try:
-                await page.wait_for_selector('#divGlobalLoadingMask.ACA_Hide', timeout=10000)
-                logger.info("✅ Loading mask cleared")
-            except:
-                logger.warning("⚠️ Loading mask timeout - proceeding anyway")
+            # Enhanced overlay/loading mask handling with multiple strategies
+            await self._handle_overlays_and_masks(page)
 
             # Enhanced download strategy based on manual testing success
             try:
@@ -270,7 +281,10 @@ class SanDiegoCSVScraper:
             except Exception as primary_error:
                 logger.warning(f"⚠️ Primary download method failed: {primary_error}")
 
-                # Fallback strategies using original selectors
+                # Re-handle overlays before fallback attempts
+                await self._handle_overlays_and_masks(page)
+
+                # Fallback strategies using original selectors with enhanced error handling
                 for selector in csv_download_selectors:
                     try:
                         element = page.locator(selector).first
@@ -337,7 +351,89 @@ class SanDiegoCSVScraper:
             return None
         finally:
             await page.close()
-    
+
+    async def _handle_overlays_and_masks(self, page: Page) -> None:
+        """
+        Comprehensive overlay and loading mask handling with multiple strategies
+        Addresses portal interface issues that block CSV download functionality
+        """
+        logger.info("🔧 Handling overlays and loading masks...")
+
+        # Strategy 1: Wait for standard loading mask to disappear
+        try:
+            await page.wait_for_selector('#divGlobalLoadingMask.ACA_Hide', timeout=15000)
+            logger.info("✅ Standard loading mask cleared")
+        except:
+            logger.warning("⚠️ Standard loading mask timeout")
+
+        # Strategy 2: Wait for any iframe masks to disappear
+        try:
+            await page.wait_for_selector('iframe.mask_iframe', state='hidden', timeout=10000)
+            logger.info("✅ Iframe mask cleared")
+        except:
+            logger.warning("⚠️ Iframe mask still present")
+
+        # Strategy 3: Check for and dismiss any modal dialogs
+        try:
+            modal_selectors = [
+                '.modal', '.dialog', '.popup', '.overlay',
+                '[role="dialog"]', '[aria-modal="true"]'
+            ]
+            for selector in modal_selectors:
+                if await page.locator(selector).count() > 0:
+                    logger.info(f"🔧 Found modal: {selector}, attempting to dismiss...")
+                    # Try to find and click close button
+                    close_buttons = [
+                        f'{selector} .close', f'{selector} [aria-label="close"]',
+                        f'{selector} .btn-close', f'{selector} button:has-text("Close")'
+                    ]
+                    for close_btn in close_buttons:
+                        if await page.locator(close_btn).count() > 0:
+                            await page.locator(close_btn).click()
+                            logger.info("✅ Modal dismissed")
+                            break
+        except Exception as e:
+            logger.warning(f"⚠️ Modal handling error: {e}")
+
+        # Strategy 4: Force remove any blocking elements with JavaScript
+        try:
+            await page.evaluate("""
+                // Remove common blocking elements
+                const blockingSelectors = [
+                    '.mask_iframe', '#divGlobalLoadingMask:not(.ACA_Hide)',
+                    '.loading-overlay', '.modal-backdrop', '.overlay'
+                ];
+
+                blockingSelectors.forEach(selector => {
+                    const elements = document.querySelectorAll(selector);
+                    elements.forEach(el => {
+                        if (el.style.display !== 'none' && !el.classList.contains('ACA_Hide')) {
+                            el.style.display = 'none';
+                            el.style.visibility = 'hidden';
+                            el.style.pointerEvents = 'none';
+                        }
+                    });
+                });
+
+                // Ensure download button is clickable
+                const downloadBtn = document.querySelector('a[id*="btnExport"]');
+                if (downloadBtn) {
+                    downloadBtn.style.pointerEvents = 'auto';
+                    downloadBtn.style.zIndex = '9999';
+                }
+            """)
+            logger.info("✅ JavaScript overlay removal executed")
+        except Exception as e:
+            logger.warning(f"⚠️ JavaScript overlay removal failed: {e}")
+
+        # Strategy 5: Wait for page to be fully interactive
+        try:
+            await page.wait_for_load_state('networkidle', timeout=10000)
+            await self.random_delay(2, 3)
+            logger.info("✅ Page fully interactive")
+        except:
+            logger.warning("⚠️ Page interaction timeout")
+
     async def _fill_search_form(self, page: Page, search_criteria: Dict[str, str]) -> None:
         """Fill search form with DATE-ONLY filtering - Maximum data collection approach"""
         # Wait for form elements to be fully loaded
@@ -1002,40 +1098,9 @@ async def main():
     logger.info(f"🔍 Search criteria: {search_criteria}")
 
     try:
-        # LARGE DATASET TESTING: Use existing large CSV file for batch geocoding performance testing
-        logger.info("🚀 Starting complete workflow with LARGE DATASET testing...")
-        logger.info("📊 Using large dataset: ../../data-example/RecordList20250811.csv (2,537 records)")
-
-        # Test with large dataset - skip CSV download and use existing file
-        large_csv_path = "../../data-example/RecordList20250811.csv"
-
-        await scraper.initialize_browser()
-
-        # Step 1: Process large CSV file directly (skip download for testing)
-        logger.info("📥 Step 1: Processing large CSV dataset...")
-        permits = scraper.process_csv_file(large_csv_path)
-
-        if not permits:
-            logger.error("❌ Large CSV processing failed - no valid permit data extracted")
-            return
-
-        # Step 2: Enhanced geocoding with large dataset
-        logger.info("🗺️ Step 2: Batch geocoding large dataset...")
-        geocoded_permits = await scraper._add_geocoding_to_permits(permits)
-
-        # Step 3: Calculate distances and pricing
-        logger.info("📏 Step 3: Calculating distances and pricing...")
-        enhanced_permits = scraper._calculate_distances_and_pricing(geocoded_permits)
-
-        # Step 4: Store results
-        logger.info("💾 Step 4: Storing results...")
-        storage_result = scraper._store_permits_in_supabase(enhanced_permits)
-        logger.info(f"📊 Storage result: {storage_result}")
-
-        permits = enhanced_permits
-
-        # Cleanup browser
-        await scraper.cleanup()
+        # Run the complete workflow with enhanced robustness (CSV download + processing + geocoding + distances)
+        logger.info("🚀 Starting complete workflow with enhanced robustness...")
+        permits = await scraper.run_complete_workflow(search_criteria, download_path="downloads")
 
         if permits:
             logger.info(f"✅ SUCCESS: Complete workflow processed {len(permits)} permits!")
