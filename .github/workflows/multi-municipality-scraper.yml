@@ -1,0 +1,186 @@
+name: Multi-Municipality Permit Scraper
+
+on:
+  schedule:
+    # Staggered execution to respect API rate limits
+    - cron: '0 2 * * 0'  # Sunday 2 AM UTC
+  workflow_dispatch:
+    inputs:
+      municipalities:
+        description: 'Municipalities to scrape (comma-separated)'
+        required: false
+        default: 'san-diego,orange-county,riverside'
+        type: string
+      force_full_scrape:
+        description: 'Force full historical scrape'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  PYTHON_VERSION: '3.11'
+  MAX_PARALLEL_JOBS: 3 # Limit concurrent executions
+
+jobs:
+  prepare-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+    - name: Set up municipality matrix
+      id: set-matrix
+      run: |
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          municipalities="${{ github.event.inputs.municipalities }}"
+        else
+          # Default scheduled municipalities
+          municipalities="san-diego,orange-county,riverside,rancho-cucamonga,ontario"
+        fi
+        
+        # Convert to JSON array with staggered delays
+        matrix_json=$(echo "$municipalities" | tr ',' '\n' | awk '
+        BEGIN { print "[" }
+        {
+          if (NR > 1) print ","
+          printf "  {\"municipality\": \"%s\", \"delay_minutes\": %d}", $1, (NR-1)*30
+        }
+        END { print "\n]" }')
+        
+        echo "matrix=$matrix_json" >> $GITHUB_OUTPUT
+        echo "Generated matrix: $matrix_json"
+
+  scrape-municipalities:
+    needs: prepare-matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      max-parallel: ${{ fromJson(env.MAX_PARALLEL_JOBS) }}
+      fail-fast: false # Continue other jobs if one fails
+      matrix:
+        include: ${{ fromJson(needs.prepare-matrix.outputs.matrix) }}
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Wait for staggered execution
+      run: |
+        delay_seconds=$((${{ matrix.delay_minutes }} * 60))
+        if [ $delay_seconds -gt 0 ]; then
+          echo "Waiting ${{ matrix.delay_minutes }} minutes before starting ${{ matrix.municipality }}..."
+          sleep $delay_seconds
+        fi
+        
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        cache: 'pip'
+        
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libnss3-dev libatk-bridge2.0-dev libdrm2 libxkbcommon0 libgtk-3-dev libgbm-dev
+        python -m pip install --upgrade pip
+        pip install playwright supabase pandas requests python-dotenv
+        playwright install chromium
+        playwright install-deps chromium
+        
+    - name: Set up environment
+      run: |
+        mkdir -p ./scripts/${{ matrix.municipality }}-script
+        echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" >> .env
+        echo "SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}" >> .env
+        echo "GEOCODIO_API_KEY=${{ secrets.GEOCODIO_API_KEY }}" >> .env
+        echo "MUNICIPALITY=${{ matrix.municipality }}" >> .env
+        echo "FORCE_FULL_SCRAPE=${{ github.event.inputs.force_full_scrape || 'false' }}" >> .env
+        
+    - name: Run municipality scraper
+      run: |
+        case "${{ matrix.municipality }}" in
+          "san-diego")
+            cd ./scripts/san-diego-script
+            python san_diego_county_scraper.py
+            ;;
+          "orange-county")
+            echo "Orange County scraper not yet implemented"
+            # cd ./scripts/orange-county-script
+            # python orange_county_scraper.py
+            ;;
+          "riverside")
+            echo "Riverside scraper not yet implemented"
+            # cd ./scripts/riverside-script  
+            # python riverside_scraper.py
+            ;;
+          *)
+            echo "Unknown municipality: ${{ matrix.municipality }}"
+            exit 1
+            ;;
+        esac
+        
+    - name: Upload results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.municipality }}-results-${{ github.run_number }}
+        path: |
+          ./scripts/${{ matrix.municipality }}-script/downloads/*.csv
+          ./scripts/${{ matrix.municipality }}-script/Scraped-data-formatted/*.json
+          ./scripts/${{ matrix.municipality }}-script/*.log
+        retention-days: 30
+        
+    - name: Report status
+      if: always()
+      run: |
+        if [ $? -eq 0 ]; then
+          echo "✅ ${{ matrix.municipality }} scraping completed successfully"
+          echo "STATUS_${{ matrix.municipality }}=success" >> $GITHUB_ENV
+        else
+          echo "❌ ${{ matrix.municipality }} scraping failed"
+          echo "STATUS_${{ matrix.municipality }}=failed" >> $GITHUB_ENV
+        fi
+
+  consolidate-results:
+    needs: scrape-municipalities
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: ./results
+        
+    - name: Generate summary report
+      run: |
+        echo "# Municipal Permit Scraping Summary" > summary.md
+        echo "**Run Date:** $(date -u)" >> summary.md
+        echo "**Workflow:** ${{ github.workflow }}" >> summary.md
+        echo "**Run Number:** ${{ github.run_number }}" >> summary.md
+        echo "" >> summary.md
+        
+        echo "## Results by Municipality" >> summary.md
+        for dir in ./results/*-results-*; do
+          if [ -d "$dir" ]; then
+            municipality=$(basename "$dir" | sed 's/-results-[0-9]*$//')
+            echo "### $municipality" >> summary.md
+            
+            # Count CSV files
+            csv_count=$(find "$dir" -name "*.csv" | wc -l)
+            json_count=$(find "$dir" -name "*.json" | wc -l)
+            log_count=$(find "$dir" -name "*.log" | wc -l)
+            
+            echo "- CSV files: $csv_count" >> summary.md
+            echo "- JSON files: $json_count" >> summary.md  
+            echo "- Log files: $log_count" >> summary.md
+            echo "" >> summary.md
+          fi
+        done
+        
+        cat summary.md
+        
+    - name: Upload consolidated summary
+      uses: actions/upload-artifact@v4
+      with:
+        name: scraping-summary-${{ github.run_number }}
+        path: summary.md
+        retention-days: 90
