@@ -319,6 +319,255 @@ const LDPQuoteSheet: React.FC<{permitData: PermitData}> = ({permitData}) => {
 };
 ```
 
+## MCP Tool Integration for Enhanced Development
+
+### Context7 MCP Integration for Documentation Access
+Leverage Context7 MCP tools to access the latest documentation for Next.js and React ecosystem:
+
+**Framework Documentation:**
+- `mcp__context7__resolve-library-id` - Find specific Next.js, React, Leaflet, or Google Maps library IDs
+- `mcp__context7__get-library-docs` - Access up-to-date documentation for:
+  - Next.js App Router patterns and server components
+  - React 18 features including Suspense and concurrent features
+  - Leaflet mapping library for interactive maps
+  - Google Maps JavaScript API for geocoding and directions
+  - Tailwind CSS for styling permit interfaces
+  - Supabase JavaScript client for real-time subscriptions
+
+### IDE MCP Integration for Development Optimization
+Utilize IDE MCP tools for enhanced development experience:
+
+**Development Quality Assurance:**
+- `mcp__ide__getDiagnostics` - Monitor TypeScript errors and Next.js build issues
+- `mcp__ide__executeCode` - Test JavaScript/TypeScript code snippets in development
+
+### Enhanced Development Workflow
+
+```typescript
+// Context7 MCP integration for accessing latest Next.js documentation
+class EnhancedNextJSDevelopment {
+  async getLatestNextJSPatterns() {
+    // Resolve Next.js library for latest documentation
+    const nextjsLibrary = await mcp__context7__resolve_library_id({
+      libraryName: "next.js"
+    });
+    
+    // Get specific Next.js App Router documentation
+    const appRouterDocs = await mcp__context7__get_library_docs({
+      context7CompatibleLibraryID: nextjsLibrary.id,
+      topic: "app router server components",
+      tokens: 5000
+    });
+    
+    return appRouterDocs;
+  }
+  
+  async getLeafletMappingDocs() {
+    // Access latest Leaflet documentation for mapping
+    const leafletLibrary = await mcp__context7__resolve_library_id({
+      libraryName: "leaflet"
+    });
+    
+    const mappingDocs = await mcp__context7__get_library_docs({
+      context7CompatibleLibraryID: leafletLibrary.id,
+      topic: "markers clustering geolocation",
+      tokens: 4000
+    });
+    
+    return mappingDocs;
+  }
+  
+  async getSupabaseClientDocs() {
+    // Get Supabase JavaScript client documentation
+    const supabaseLibrary = await mcp__context7__resolve_library_id({
+      libraryName: "supabase-js"
+    });
+    
+    const realtimeDocs = await mcp__context7__get_library_docs({
+      context7CompatibleLibraryID: supabaseLibrary.id,
+      topic: "real-time subscriptions websockets",
+      tokens: 3000
+    });
+    
+    return realtimeDocs;
+  }
+}
+```
+
+### Real-Time Development Quality Monitoring
+
+```typescript
+// Enhanced development workflow with diagnostic monitoring
+class QualityAssuiredDevelopment {
+  async developWithQualityChecks(filePath: string) {
+    // Get current diagnostics before development
+    const initialDiagnostics = await mcp__ide__getDiagnostics({
+      uri: filePath
+    });
+    
+    // Develop component (example permit map component)
+    await this.developPermitMapComponent();
+    
+    // Check for new issues after development
+    const postDevelopmentDiagnostics = await mcp__ide__getDiagnostics({
+      uri: filePath
+    });
+    
+    // Handle any new TypeScript errors
+    if (postDevelopmentDiagnostics.length > initialDiagnostics.length) {
+      await this.resolveTypeScriptIssues(postDevelopmentDiagnostics);
+    }
+    
+    return postDevelopmentDiagnostics;
+  }
+  
+  async testCodeSnippets(testCode: string) {
+    // Test JavaScript code for permit calculations
+    const result = await mcp__ide__executeCode({
+      code: testCode
+    });
+    
+    return result;
+  }
+}
+```
+
+### Next.js Optimization with Latest Patterns
+
+```typescript
+// Access latest Next.js optimization patterns through Context7
+async function implementLatestNextJSOptimizations() {
+  // Get latest Next.js performance optimization docs
+  const nextjsLibrary = await mcp__context7__resolve_library_id({
+    libraryName: "next.js"
+  });
+  
+  const performanceDocs = await mcp__context7__get_library_docs({
+    context7CompatibleLibraryID: nextjsLibrary.id,
+    topic: "performance optimization image loading dynamic imports",
+    tokens: 6000
+  });
+  
+  // Implementation based on latest documentation
+  return performanceDocs;
+}
+
+// Server Components for permit data
+async function OptimizedPermitServerComponent() {
+  // Access latest server component patterns
+  const serverComponentDocs = await mcp__context7__get_library_docs({
+    context7CompatibleLibraryID: "/vercel/next.js",
+    topic: "server components data fetching",
+    tokens: 4000
+  });
+  
+  // Implement based on latest patterns
+  return serverComponentDocs;
+}
+```
+
+### Map Library Integration with Latest Documentation
+
+```typescript
+// Dynamic library documentation access for mapping
+class DynamicMappingIntegration {
+  async implementAdvancedMapping(libraryChoice: 'leaflet' | 'google-maps' | 'mapbox') {
+    let library, docs;
+    
+    switch (libraryChoice) {
+      case 'leaflet':
+        library = await mcp__context7__resolve_library_id({
+          libraryName: "leaflet"
+        });
+        docs = await mcp__context7__get_library_docs({
+          context7CompatibleLibraryID: library.id,
+          topic: "clustering markers popups geolocation",
+          tokens: 5000
+        });
+        break;
+        
+      case 'google-maps':
+        library = await mcp__context7__resolve_library_id({
+          libraryName: "@googlemaps/js-api-loader"
+        });
+        docs = await mcp__context7__get_library_docs({
+          context7CompatibleLibraryID: library.id,
+          topic: "markers clustering directions distance matrix",
+          tokens: 5000
+        });
+        break;
+        
+      case 'mapbox':
+        library = await mcp__context7__resolve_library_id({
+          libraryName: "mapbox-gl"
+        });
+        docs = await mcp__context7__get_library_docs({
+          context7CompatibleLibraryID: library.id,
+          topic: "markers clustering popups navigation",
+          tokens: 5000
+        });
+        break;
+    }
+    
+    return this.implementMappingBasedOnDocs(docs);
+  }
+}
+```
+
+### Continuous Development Quality Assurance
+
+```typescript
+// Integrated development workflow with quality monitoring
+export class IntegratedPermitDevelopment {
+  async developPermitFeatureWithQuality(featureName: string) {
+    // 1. Access latest documentation for the feature
+    const relevantDocs = await this.getRelevantDocumentation(featureName);
+    
+    // 2. Monitor diagnostics during development
+    const diagnostics = await mcp__ide__getDiagnostics();
+    
+    // 3. Develop feature with latest patterns
+    const featureCode = await this.implementFeature(featureName, relevantDocs);
+    
+    // 4. Test code snippets
+    const testResults = await mcp__ide__executeCode({
+      code: this.generateTestCode(featureName)
+    });
+    
+    // 5. Final quality check
+    const finalDiagnostics = await mcp__ide__getDiagnostics();
+    
+    return {
+      featureCode,
+      testResults,
+      qualityStatus: finalDiagnostics
+    };
+  }
+  
+  private async getRelevantDocumentation(featureName: string) {
+    const docQueries = {
+      'permit-map': 'leaflet markers clustering',
+      'real-time-updates': 'supabase real-time subscriptions',
+      'pricing-calculator': 'react state management calculations',
+      'export-functionality': 'next.js api routes file download'
+    };
+    
+    const query = docQueries[featureName] || featureName;
+    
+    // Get Next.js docs
+    const nextjsLibrary = await mcp__context7__resolve_library_id({
+      libraryName: "next.js"
+    });
+    
+    return await mcp__context7__get_library_docs({
+      context7CompatibleLibraryID: nextjsLibrary.id,
+      topic: query,
+      tokens: 4000
+    });
+  }
+}
+```
+
 ### Technical Integration Points
 - **Next.js Optimization**: Server-side rendering for improved initial map load performance
 - **Supabase Real-Time**: WebSocket integration for live permit updates from scraping operations

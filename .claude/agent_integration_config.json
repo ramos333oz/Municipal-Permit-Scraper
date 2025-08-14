@@ -1,0 +1,132 @@
+{
+  "agent_mapping": {
+    "api_development": {
+      "primary": "backend-api-developer.md",
+      "secondary": ["database-architect.md", "security-specialist.md"],
+      "mcp_tools": ["supabase", "context7"],
+      "patterns": ["Direct-to-Supabase", "Edge Functions", "Real-time API"]
+    },
+    "database_operations": {
+      "primary": "database-architect.md", 
+      "secondary": ["data-engineer.md", "backend-api-developer.md"],
+      "mcp_tools": ["supabase", "context7"],
+      "patterns": ["PostGIS Schema", "15-Field Structure", "Migration Patterns"]
+    },
+    "web_scraping": {
+      "primary": "web-scraper.md",
+      "secondary": ["data-engineer.md", "backend-api-developer.md"],
+      "mcp_tools": ["playwright", "exa", "context7"],
+      "patterns": ["Browser-Form-Download Workflow", "Date-Only Filtering", "Error Recovery"]
+    },
+    "frontend_development": {
+      "primary": "frontend-developer.md",
+      "secondary": ["ui-ux-designer.md", "backend-api-developer.md"],
+      "mcp_tools": ["context7", "ide"],
+      "patterns": ["Next.js Optimization", "Real-time Updates", "Mobile-First Design"]
+    },
+    "data_processing": {
+      "primary": "data-engineer.md",
+      "secondary": ["database-architect.md", "business-logic-agent.md"],
+      "mcp_tools": ["supabase", "context7"],
+      "patterns": ["ETL Pipelines", "Data Quality Monitoring", "Address Standardization"]
+    },
+    "business_logic": {
+      "primary": "business-logic-agent.md",
+      "secondary": ["backend-api-developer.md", "data-engineer.md"],
+      "mcp_tools": ["supabase", "context7"],
+      "patterns": ["LDP Pricing Formula", "Status Transitions", "Edge Function Logic"]
+    },
+    "security_analysis": {
+      "primary": "security-specialist.md",
+      "secondary": ["backend-api-developer.md", "devops-infrastructure.md"],
+      "mcp_tools": ["context7", "exa"],
+      "patterns": ["OWASP Guidelines", "Threat Intelligence", "Supabase Security"]
+    },
+    "testing_qa": {
+      "primary": "qa-tester.md",
+      "secondary": ["security-specialist.md", "frontend-developer.md"],
+      "mcp_tools": ["ide", "context7"],
+      "patterns": ["Comprehensive Testing", "Quality Monitoring", "Validation Logic"]
+    },
+    "infrastructure": {
+      "primary": "devops-infrastructure.md",
+      "secondary": ["database-architect.md", "security-specialist.md"],
+      "mcp_tools": ["context7", "supabase"],
+      "patterns": ["Infrastructure as Code", "CI/CD Pipelines", "Environment Management"]
+    },
+    "ui_ux_design": {
+      "primary": "ui-ux-designer.md", 
+      "secondary": ["frontend-developer.md", "qa-tester.md"],
+      "mcp_tools": ["context7", "exa"],
+      "patterns": ["Design Systems", "User Research", "Accessibility Standards"]
+    },
+    "product_management": {
+      "primary": "project-manager.md",
+      "secondary": ["ui-ux-designer.md", "backend-api-developer.md", "web-scraper.md"],
+      "mcp_tools": ["exa", "context7"],
+      "patterns": ["Market Research", "Feature Specifications", "User Stories"]
+    }
+  },
+  "mandatory_requirements": {
+    "municipal_permit_data_structure": [
+      "site_number", "status", "project_city", "notes",
+      "project_company", "project_contact", "project_phone", "project_email",
+      "quantity", "material_description",
+      "dump_fee", "trucking_price_per_load", "ldp_fee", "total_price_per_load"
+    ],
+    "pricing_formula": {
+      "trucking_price": "(Roundtrip Minutes × 1.83) + Added Minutes",
+      "total_price": "Dump Fee + Trucking Price/Load + LDP Fee"
+    },
+    "scraping_workflow": [
+      "Browser Navigation",
+      "Form Interaction", 
+      "Search Execution",
+      "File Download",
+      "Data Extraction",
+      "Database Storage"
+    ],
+    "filtering_strategy": "DATE_ONLY_FILTERING",
+    "date_range_standard": "01/01/2023 to current_date",
+    "primary_architecture": "Direct-to-Supabase"
+  },
+  "mcp_tool_patterns": {
+    "supabase": {
+      "execute_sql": "mcp__supabase__execute_sql",
+      "apply_migration": "mcp__supabase__apply_migration", 
+      "deploy_edge_function": "mcp__supabase__deploy_edge_function",
+      "get_logs": "mcp__supabase__get_logs",
+      "create_branch": "mcp__supabase__create_branch"
+    },
+    "playwright": {
+      "navigate": "mcp__playwright__browser_navigate",
+      "click": "mcp__playwright__browser_click",
+      "type": "mcp__playwright__browser_type",
+      "snapshot": "mcp__playwright__browser_snapshot",
+      "wait": "mcp__playwright__browser_wait_for"
+    },
+    "context7": {
+      "resolve_library": "mcp__context7__resolve_library_id",
+      "get_docs": "mcp__context7__get_library_docs"
+    },
+    "exa": {
+      "web_search": "mcp__exa__web_search_exa",
+      "deep_research_start": "mcp__exa__deep_researcher_start",
+      "deep_research_check": "mcp__exa__deep_researcher_check",
+      "company_research": "mcp__exa__company_research_exa"
+    },
+    "ide": {
+      "get_diagnostics": "mcp__ide__getDiagnostics",
+      "execute_code": "mcp__ide__executeCode"
+    }
+  },
+  "validation_checklist": [
+    "Agent documentation read and followed",
+    "MCP tools integrated correctly", 
+    "Architectural patterns match specifications",
+    "Naming conventions followed",
+    "Error handling implemented",
+    "Quality standards met",
+    "Municipal permit requirements satisfied"
+  ]
+}

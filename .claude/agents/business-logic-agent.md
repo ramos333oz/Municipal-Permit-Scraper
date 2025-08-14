@@ -65,6 +65,307 @@ For each business calculation, provide:
    - Cross-city duplicate detection preventing permit tracking conflicts
    - Confidence scoring algorithms for automated permit data quality assessment
 
+## MCP Tool Integration for Enhanced Business Logic Implementation
+
+### Supabase MCP Integration for Business Rule Enforcement
+Leverage Supabase MCP tools for comprehensive business logic implementation:
+
+**Business Rule Storage and Execution:**
+- `mcp__supabase__execute_sql` - Implement complex business rules and pricing calculations
+- `mcp__supabase__apply_migration` - Deploy business logic schema changes and stored procedures
+- `mcp__supabase__deploy_edge_function` - Deploy serverless business logic functions
+- `mcp__supabase__list_edge_functions` - Manage business rule functions and versioning
+
+**Real-Time Business Logic:**
+- `mcp__supabase__get_logs` - Monitor business rule execution and performance
+- `mcp__supabase__get_advisors` - Optimize business logic performance and security
+
+### Context7 MCP Integration for Business Framework Documentation
+Access up-to-date documentation for business logic frameworks:
+
+**Business Logic Documentation:**
+- `mcp__context7__resolve-library-id` - Find business rule engine and workflow documentation
+- `mcp__context7__get-library-docs` - Access latest documentation for:
+  - Business rule engines and workflow systems
+  - Financial calculation libraries
+  - State machine implementations
+  - Validation frameworks (pydantic, joi)
+
+### Enhanced Business Logic Implementation
+
+```python
+# Advanced business logic with MCP integration
+class AdvancedMunicipalBusinessLogic:
+    def __init__(self):
+        self.supabase_tools = SupabaseMCPTools()
+        self.context7_tools = Context7MCPTools()
+    
+    async def deploy_pricing_business_logic(self, project_id: str):
+        """Deploy comprehensive pricing business logic as Edge Functions"""
+        
+        # Get latest business logic documentation
+        business_docs = await self.context7_tools.get_library_docs(
+            context7CompatibleLibraryID="/supabase/functions-js",
+            topic="business logic calculations edge functions",
+            tokens=4000
+        )
+        
+        # Deploy LDP pricing calculation edge function
+        pricing_function = await self.supabase_tools.deploy_edge_function(
+            project_id=project_id,
+            name="advanced-ldp-pricing-calculator",
+            files=[{
+                "name": "index.ts",
+                "content": '''
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
+
+interface PricingRequest {
+  permitId: string;
+  roundtripMinutes?: number;
+  addedMinutes?: number;
+  dumpFee?: number;
+  ldpFee?: number;
+  materialType?: string;
+  quantity?: number;
+  overrideCalculation?: boolean;
+}
+
+interface BusinessRules {
+  minTruckingPrice: number;
+  maxAddedMinutes: number;
+  materialMultipliers: Record<string, number>;
+  citySpecificFees: Record<string, number>;
+}
+
+const businessRules: BusinessRules = {
+  minTruckingPrice: 50.00,
+  maxAddedMinutes: 30,
+  materialMultipliers: {
+    "Clean Fill": 1.0,
+    "Clay": 1.2,
+    "Grading": 1.1,
+    "Stockpile": 0.9
+  },
+  citySpecificFees: {
+    "San Diego County": 0,
+    "Ontario": 25,
+    "Riverside": 15
+  }
+};
+
+serve(async (req: Request) => {
+  try {
+    const request: PricingRequest = await req.json();
+    
+    // Business Rule Validation
+    if (request.addedMinutes && request.addedMinutes > businessRules.maxAddedMinutes) {
+      return new Response(JSON.stringify({
+        error: "Added minutes exceeds maximum allowed (30 minutes)",
+        maxAllowed: businessRules.maxAddedMinutes
+      }), { status: 400 });
+    }
+    
+    // Core LDP Formula Implementation
+    const baseRoundtrip = request.roundtripMinutes || 0;
+    const addedMinutes = request.addedMinutes || 0;
+    const dumpFee = request.dumpFee || 0;
+    const ldpFee = request.ldpFee || 0;
+    
+    // Exact LDP Formula: (Roundtrip Minutes × 1.83) + Added Minutes
+    let truckingPricePerLoad = (baseRoundtrip * 1.83) + addedMinutes;
+    
+    // Apply business rules
+    if (truckingPricePerLoad < businessRules.minTruckingPrice) {
+      truckingPricePerLoad = businessRules.minTruckingPrice;
+    }
+    
+    // Apply material type multiplier
+    if (request.materialType && businessRules.materialMultipliers[request.materialType]) {
+      truckingPricePerLoad *= businessRules.materialMultipliers[request.materialType];
+    }
+    
+    // Calculate total with all fees
+    const totalPricePerLoad = dumpFee + truckingPricePerLoad + ldpFee;
+    
+    // Quantity-based calculations
+    let totalProjectCost = totalPricePerLoad;
+    if (request.quantity) {
+      // Estimate number of loads (assuming 10 CY per load)
+      const estimatedLoads = Math.ceil(request.quantity / 10);
+      totalProjectCost = totalPricePerLoad * estimatedLoads;
+    }
+    
+    const response = {
+      permitId: request.permitId,
+      pricing: {
+        truckingPricePerLoad: Math.round(truckingPricePerLoad * 100) / 100,
+        totalPricePerLoad: Math.round(totalPricePerLoad * 100) / 100,
+        totalProjectCost: Math.round(totalProjectCost * 100) / 100
+      },
+      businessRulesApplied: {
+        minimumTruckingPrice: truckingPricePerLoad === businessRules.minTruckingPrice,
+        materialMultiplier: request.materialType ? businessRules.materialMultipliers[request.materialType] : 1.0,
+        addedMinutesValidation: addedMinutes <= businessRules.maxAddedMinutes
+      },
+      calculation: {
+        formula: "(Roundtrip Minutes × 1.83) + Added Minutes = Trucking Price/Load",
+        roundtripMinutes: baseRoundtrip,
+        addedMinutes,
+        dumpFee,
+        ldpFee,
+        materialType: request.materialType
+      }
+    };
+    
+    return new Response(JSON.stringify(response), {
+      headers: { "Content-Type": "application/json" },
+    });
+    
+  } catch (error) {
+    return new Response(JSON.stringify({
+      error: "Business logic calculation failed",
+      details: error.message
+    }), { 
+      status: 500,
+      headers: { "Content-Type": "application/json" }
+    });
+  }
+});
+                '''
+            }]
+        )
+        
+        return pricing_function
+    
+    async def implement_permit_status_business_rules(self, project_id: str):
+        """Implement permit status transition business rules"""
+        
+        status_rules = await self.supabase_tools.apply_migration(
+            project_id=project_id,
+            name="permit_status_business_rules",
+            query="""
+            -- Permit Status Transition Business Rules
+            CREATE OR REPLACE FUNCTION validate_permit_status_transition(
+                current_status VARCHAR,
+                new_status VARCHAR,
+                permit_date DATE,
+                municipal_system VARCHAR DEFAULT 'general'
+            )
+            RETURNS BOOLEAN AS $$
+            DECLARE
+                valid_transition BOOLEAN := FALSE;
+            BEGIN
+                -- Business Rule: Valid status transitions based on municipal workflows
+                CASE current_status
+                    WHEN 'Open' THEN
+                        valid_transition := new_status IN ('HOT', 'Under Review', 'Withdrawn', 'Inactive');
+                    WHEN 'HOT' THEN
+                        valid_transition := new_status IN ('Completed', 'Under Review', 'Withdrawn', 'Open');
+                    WHEN 'Under Review' THEN
+                        valid_transition := new_status IN ('Approved', 'Resubmittal Required', 'Withdrawn', 'Open');
+                    WHEN 'Approved' THEN
+                        valid_transition := new_status IN ('Issued', 'Active', 'Completed');
+                    WHEN 'Active' THEN
+                        valid_transition := new_status IN ('Completed', 'Inactive', 'HOT');
+                    WHEN 'Completed' THEN
+                        valid_transition := new_status IN ('Inactive');  -- Final status, limited transitions
+                    WHEN 'Withdrawn' THEN
+                        valid_transition := new_status IN ('Open');     -- Can be reactivated
+                    WHEN 'Inactive' THEN
+                        valid_transition := new_status IN ('Open');     -- Can be reactivated
+                    ELSE
+                        valid_transition := FALSE;
+                END CASE;
+                
+                -- Business Rule: Prevent status changes on very old permits
+                IF permit_date < CURRENT_DATE - INTERVAL '2 years' AND new_status NOT IN ('Inactive') THEN
+                    valid_transition := FALSE;
+                END IF;
+                
+                -- Business Rule: Municipal system specific validations
+                IF municipal_system = 'accela' AND current_status = 'Issued' THEN
+                    valid_transition := new_status IN ('Active', 'Completed', 'Inactive');
+                END IF;
+                
+                RETURN valid_transition;
+            END;
+            $$ LANGUAGE plpgsql;
+            
+            -- Create trigger to enforce status transition rules
+            CREATE OR REPLACE FUNCTION enforce_permit_status_transitions()
+            RETURNS TRIGGER AS $$
+            BEGIN
+                IF NOT validate_permit_status_transition(
+                    OLD.status, 
+                    NEW.status, 
+                    NEW.date_opened::DATE,
+                    COALESCE(NEW.source_portal, 'general')
+                ) THEN
+                    RAISE EXCEPTION 'Invalid permit status transition from % to % for permit %', 
+                        OLD.status, NEW.status, NEW.site_number;
+                END IF;
+                
+                -- Log status change for audit
+                INSERT INTO permit_status_audit (
+                    permit_id, old_status, new_status, 
+                    changed_by, change_reason, created_at
+                )
+                VALUES (
+                    NEW.id, OLD.status, NEW.status,
+                    'system', 'Automated status transition',
+                    NOW()
+                );
+                
+                RETURN NEW;
+            END;
+            $$ LANGUAGE plpgsql;
+            
+            -- Apply trigger to permits table
+            DROP TRIGGER IF EXISTS permit_status_transition_trigger ON permits;
+            CREATE TRIGGER permit_status_transition_trigger
+                BEFORE UPDATE OF status ON permits
+                FOR EACH ROW
+                WHEN (OLD.status IS DISTINCT FROM NEW.status)
+                EXECUTE FUNCTION enforce_permit_status_transitions();
+            """
+        )
+        
+        return status_rules
+    
+    async def monitor_business_logic_performance(self, project_id: str):
+        """Monitor business logic execution and rule performance"""
+        
+        # Get business logic execution logs
+        business_logs = await self.supabase_tools.get_logs(
+            project_id=project_id,
+            service="edge-function"
+        )
+        
+        # Get business rule performance metrics
+        rule_metrics = await self.supabase_tools.execute_sql(
+            project_id=project_id,
+            query="""
+            SELECT 
+                function_name,
+                DATE_TRUNC('hour', created_at) as hour,
+                COUNT(*) as executions,
+                AVG(execution_time_ms) as avg_execution_time,
+                COUNT(*) FILTER (WHERE status = 'success') as successful_executions,
+                COUNT(*) FILTER (WHERE status = 'error') as failed_executions
+            FROM edge_function_logs
+            WHERE created_at >= NOW() - INTERVAL '24 hours'
+            GROUP BY function_name, DATE_TRUNC('hour', created_at)
+            ORDER BY hour DESC, executions DESC;
+            """
+        )
+        
+        return {
+            'business_logs': business_logs,
+            'rule_performance': rule_metrics
+        }
+```
+
 ### Permit Status Transition Logic
 
 1. **Municipal Workflow Implementation**
