@@ -1,0 +1,83 @@
+[
+  {
+    "id": "7552f3da-b516-47a2-ae0d-9ca3b451b929",
+    "site_number": "PSGN25-093",
+    "record_type": "Sign Permit",
+    "status": "Active",
+    "coordinates": {
+      "lat": 34.033508,
+      "lng": -117.651403
+    },
+    "address": "2202 S EUCLID AV, ONTARIO CA 91762",
+    "formatted_address": "2202 S Euclid Ave, Ontario, CA 91762",
+    "project_city": "San Diego County",
+    "project_company": null,
+    "project_contact": null,
+    "date_opened": "2025-08-05",
+    "pricing": {
+      "dump_fee": 45.0,
+      "ldp_fee": 20.0,
+      "trucking_price_per_load": 50.75,
+      "total_price_per_load": 115.75,
+      "roundtrip_minutes": 25
+    },
+    "source_portal": "San Diego County",
+    "geocoding_accuracy": "rooftop",
+    "created_at": "2025-08-14T19:06:49.611083+00:00",
+    "updated_at": "2025-08-14T19:06:50.513388+00:00"
+  },
+  {
+    "id": "62cc8f8b-b1f0-4192-ba6d-88ba0e0989f4",
+    "site_number": "PTUP25-043",
+    "record_type": "Temporary Use Permit",
+    "status": "Active",
+    "coordinates": {
+      "lat": 34.006648,
+      "lng": -117.628884
+    },
+    "address": "13608 S GROVE AV, ONTARIO CA 91761",
+    "formatted_address": "13608 S Grove Ave, Ontario, CA 91761",
+    "project_city": "San Diego County",
+    "project_company": null,
+    "project_contact": null,
+    "date_opened": "2025-08-04",
+    "pricing": {
+      "dump_fee": 45.0,
+      "ldp_fee": 20.0,
+      "trucking_price_per_load": 50.75,
+      "total_price_per_load": 115.75,
+      "roundtrip_minutes": 25
+    },
+    "source_portal": "San Diego County",
+    "geocoding_accuracy": "rooftop",
+    "created_at": "2025-08-14T19:06:49.611083+00:00",
+    "updated_at": "2025-08-14T19:06:50.594863+00:00"
+  },
+  {
+    "id": "b81b19df-31c7-488a-b672-e86e90df1783",
+    "site_number": "PPA25-0258",
+    "record_type": "Planning Pre-Application",
+    "status": "Complete",
+    "coordinates": {
+      "lat": 34.067742,
+      "lng": -117.610234
+    },
+    "address": "430 N VINEYARD AV, SUITE 1-100, ONTARIO CA 91764",
+    "formatted_address": "430 N Vineyard Ave, Ste 100, Ontario, CA 91764",
+    "project_city": "San Diego County",
+    "project_company": null,
+    "project_contact": null,
+    "date_opened": "2025-08-07",
+    "pricing": {
+      "dump_fee": 45.0,
+      "ldp_fee": 20.0,
+      "trucking_price_per_load": 50.75,
+      "total_price_per_load": 115.75,
+      "roundtrip_minutes": 25
+    },
+    "source_portal": "San Diego County",
+    "geocoding_accuracy": "rooftop",
+    "created_at": "2025-08-14T19:06:49.611083+00:00",
+    "updated_at": "2025-08-14T19:06:50.366406+00:00"
+  }
+]
