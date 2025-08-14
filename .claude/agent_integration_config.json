@@ -1,4 +1,18 @@
 {
+  "project_foundation": {
+    "mandatory_reading": [
+      "Docs/Project_Overview/Project_Overview.md",
+      "Docs/Project_Overview/Project_Guidelines.md", 
+      ".claude/EXISTING_SCRIPT_FOUNDATION.md",
+      ".claude/AGENT_COORDINATION_PLAN.md"
+    ],
+    "working_script_location": "scripts/san-diego-script/",
+    "proven_data_structure": {
+      "csv_columns": ["Record Number", "Type", "Address", "Date Opened", "Status"],
+      "data_quality": "95.4% address completion rate",
+      "proven_workflow": "Browser→Form→Search→Download→Extract→Geocode→Store"
+    }
+  },
   "agent_mapping": {
     "api_development": {
       "primary": "backend-api-developer.md",
