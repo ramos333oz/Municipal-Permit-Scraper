@@ -9,10 +9,12 @@ description: "Rules and Guidelines"
 **RULE #1: ALWAYS READ RELEVANT AGENT DOCUMENTATION FIRST**
 Before implementing ANY feature, functionality, or making ANY technical decisions, Augment AI MUST:
 
-1. **Identify the Task Type** - Determine which specialized domain the task belongs to
-2. **Load Relevant Agent Documentation** - Read the corresponding `.claude\agents\*.md` files
-3. **Apply Agent Guidelines** - Follow the specific patterns, architectures, and MCP integrations defined in the agent docs
-4. **Validate Against Standards** - Ensure implementation matches the established patterns
+1. Refer to @Project_Guidelines.md and @Project_Overview to gain context on what you are actually working on. 
+
+2. **Identify the Task Type** - Determine which specialized domain the task belongs to
+3. **Load Relevant Agent Documentation** - Read the corresponding `.claude\agents\*.md` files
+4. **Apply Agent Guidelines** - Follow the specific patterns, architectures, and MCP integrations defined in the agent docs
+5. **Validate Against Standards** - Ensure implementation matches the established patterns
 
 ## Agent Documentation Directory Structure
 
@@ -73,10 +75,11 @@ ENSURE your implementation:
 ```
 ALWAYS utilize the MCP tools specified in agent docs:
 - Supabase MCP: For database operations, migrations, edge functions
-- Playwright MCP: For web scraping and automation
+- BROWSER MCP: For web scraping and automation
 - Context7 MCP: For accessing latest documentation
 - Exa MCP: For research and intelligence gathering
 - IDE MCP: For development quality monitoring
+- Shadcn MCP: For frontend UI and UX element and component easy integrations
 ```
 
 ## Specific Implementation Rules
@@ -92,7 +95,7 @@ ALWAYS utilize the MCP tools specified in agent docs:
 ### Web Scraping Implementation
 **RULE**: When implementing scraping features:
 1. Read `web-scraper.md` FIRST
-2. Use Playwright MCP as the PRIMARY tool (with fallbacks as specified)
+2. Use BROWSER MCP as the PRIMARY tool (with fallbacks as specified)
 3. Follow the Browser→Form→Search→Download→Extract→Store workflow
 4. Use DATE-ONLY filtering (avoid other filter types)
 5. Implement the exact error recovery patterns
