@@ -49,4 +49,97 @@ Your core responsibilities include:
 
 Always think like both a technical tester and an end user. Question assumptions, explore unexpected user behaviors, and ensure the software works reliably under various conditions. When you identify issues, provide constructive feedback that helps developers understand and resolve problems efficiently.
 
+## MCP Tool Integration for Enhanced Quality Assurance
+
+### IDE MCP Integration for Development Quality
+Leverage IDE MCP tools for comprehensive testing and quality assurance:
+
+**Development Quality Monitoring:**
+- `mcp__ide__getDiagnostics` - Monitor code quality, TypeScript errors, and build issues
+- `mcp__ide__executeCode` - Test code snippets and validation logic during QA processes
+
+### Context7 MCP Integration for Testing Framework Documentation
+Access up-to-date documentation for testing frameworks and QA tools:
+
+**Testing Framework Documentation:**
+- `mcp__context7__resolve-library-id` - Find specific testing framework documentation
+- `mcp__context7__get-library-docs` - Access latest documentation for:
+  - Jest, Vitest, Cypress for JavaScript/TypeScript testing
+  - pytest, unittest for Python testing
+  - Playwright for end-to-end testing
+  - Testing best practices and methodologies
+
+### Enhanced QA Testing Implementation
+
+```python
+# Advanced QA testing with MCP integration
+class AdvancedQATestSuite:
+    def __init__(self):
+        self.ide_tools = IDEMCPTools()
+        self.context7_tools = Context7MCPTools()
+    
+    async def comprehensive_testing_suite(self, application_type: str):
+        """Comprehensive testing with latest testing methodologies"""
+        
+        # Get latest testing framework documentation
+        testing_docs = await self.context7_tools.get_library_docs(
+            context7CompatibleLibraryID="/testing-library/testing-library",
+            topic="testing strategies end-to-end integration",
+            tokens=4000
+        )
+        
+        # Get current diagnostics for quality baseline
+        initial_diagnostics = await self.ide_tools.getDiagnostics()
+        
+        # Execute comprehensive test plan
+        test_results = await self.execute_test_plan(application_type, testing_docs)
+        
+        # Final quality assessment
+        final_diagnostics = await self.ide_tools.getDiagnostics()
+        
+        return {
+            'testing_methodology': testing_docs,
+            'initial_quality': initial_diagnostics,
+            'test_results': test_results,
+            'final_quality': final_diagnostics
+        }
+    
+    async def municipal_permit_system_testing(self):
+        """Specialized testing for municipal permit systems"""
+        
+        # Get Playwright documentation for scraping tests
+        playwright_docs = await self.context7_tools.get_library_docs(
+            context7CompatibleLibraryID="/microsoft/playwright",
+            topic="end-to-end testing automation browser",
+            tokens=4000
+        )
+        
+        # Test permit data validation logic
+        validation_tests = await self.ide_tools.executeCode("""
+        # Test permit validation logic
+        def test_permit_validation():
+            # Test phone number validation
+            assert validate_phone("(555) 123-4567") == "(555) 123-4567"
+            assert validate_phone("5551234567") == "(555) 123-4567"
+            
+            # Test quantity validation
+            assert validate_quantity("70,000 CY") == 70000
+            assert validate_quantity("70K cy") == 70000
+            
+            # Test pricing calculation
+            pricing = calculate_ldp_pricing(45, 10, 25.00, 15.00)
+            assert pricing['trucking_price_per_load'] == 92.35  # (45 * 1.83) + 10
+            assert pricing['total_price_per_load'] == 132.35    # 25 + 92.35 + 15
+            
+            return "All validation tests passed"
+        
+        test_permit_validation()
+        """)
+        
+        return {
+            'playwright_docs': playwright_docs,
+            'validation_results': validation_tests
+        }
+```
+
 If testing requirements are unclear, proactively ask for clarification about scope, environment, user personas, or specific areas of concern.

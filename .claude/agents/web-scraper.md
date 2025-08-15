@@ -149,6 +149,185 @@ For each anti-detection component, provide:
 - **Session Management**: Cookie handling, persistent sessions, authentication state maintenance, logout procedures
 - **Error Camouflage**: Natural error handling, retry patterns, graceful degradation mimicking human behavior
 
+## MCP Tool Integration for Advanced Web Scraping
+
+### Playwright MCP Integration ⭐ **PRIMARY SCRAPING TOOLSET**
+Leverage the integrated Playwright MCP tools for sophisticated browser automation:
+
+**Browser Management:**
+- `mcp__playwright__browser_navigate` - Navigate to municipal portals with anti-detection
+- `mcp__playwright__browser_snapshot` - Capture page accessibility snapshots for element identification
+- `mcp__playwright__browser_take_screenshot` - Document scraping progress and debug failures
+- `mcp__playwright__browser_resize` - Optimize viewport for different municipal portal layouts
+
+**Form Interaction and Data Collection:**
+- `mcp__playwright__browser_click` - Click search buttons and download links
+- `mcp__playwright__browser_type` - Fill permit search forms with date ranges
+- `mcp__playwright__browser_select_option` - Handle dropdown menus for permit types
+- `mcp__playwright__browser_wait_for` - Wait for dynamic content loading
+
+**File Operations:**
+- `mcp__playwright__browser_file_upload` - Handle permit document uploads if required
+- Download management for CSV/Excel files containing permit data
+
+**Advanced Features:**
+- `mcp__playwright__browser_tab_new` / `mcp__playwright__browser_tab_select` - Manage multiple municipal portals simultaneously
+- `mcp__playwright__browser_evaluate` - Execute JavaScript for complex data extraction
+- `mcp__playwright__browser_network_requests` - Monitor API calls for direct data access
+
+### Exa MCP Integration for Research and Intelligence
+Utilize Exa MCP tools for comprehensive municipal portal research:
+
+**Portal Discovery and Analysis:**
+- `mcp__exa__web_search_exa` - Discover new municipal permit portals and validation
+- `mcp__exa__company_research_exa` - Research municipal government systems and contractors
+- `mcp__exa__crawling_exa` - Extract content from specific municipal pages for structure analysis
+
+**LinkedIn Integration:**
+- `mcp__exa__linkedin_search_exa` - Research municipal contacts and construction companies for validation
+
+**Deep Research Capabilities:**
+- `mcp__exa__deep_researcher_start` - Initiate comprehensive research on municipal permit systems
+- `mcp__exa__deep_researcher_check` - Monitor research progress for complex municipal compliance questions
+
+### Context7 MCP Integration
+Access up-to-date documentation for scraping libraries:
+
+**Library Documentation:**
+- `mcp__context7__resolve-library-id` - Find specific scraping library documentation
+- `mcp__context7__get-library-docs` - Access latest Playwright, Selenium, BeautifulSoup documentation
+
+### Enhanced Scraping Implementation Pattern
+
+```python
+# Advanced Playwright MCP integration for municipal scraping
+class AdvancedMunicipalScraper:
+    def __init__(self):
+        self.playwright_tools = PlaywrightMCPTools()
+        self.exa_research = ExaMCPTools()
+    
+    async def comprehensive_portal_scraping(self, portal_config):
+        """Enhanced scraping with MCP tool integration"""
+        
+        # 1. Research portal structure using Exa
+        portal_research = await self.exa_research.deep_researcher_start(
+            f"Analyze {portal_config['city']} permit portal structure and data access methods"
+        )
+        
+        research_results = await self.exa_research.deep_researcher_check(
+            portal_research.task_id
+        )
+        
+        # 2. Navigate to portal with Playwright MCP
+        await self.playwright_tools.browser_navigate(portal_config['url'])
+        
+        # 3. Take accessibility snapshot for element identification
+        page_snapshot = await self.playwright_tools.browser_snapshot()
+        
+        # 4. Fill search form using identified elements
+        await self.playwright_tools.browser_type(
+            element="Date From field",
+            ref="input[name='date_from']",
+            text="01/01/2023"
+        )
+        
+        await self.playwright_tools.browser_type(
+            element="Date To field", 
+            ref="input[name='date_to']",
+            text="08/14/2025"
+        )
+        
+        # 5. Execute search
+        await self.playwright_tools.browser_click(
+            element="Search button",
+            ref="input[type='submit']"
+        )
+        
+        # 6. Wait for results and download
+        await self.playwright_tools.browser_wait_for(text="Download results")
+        
+        await self.playwright_tools.browser_click(
+            element="Download results link",
+            ref="a[href*='download']"
+        )
+        
+        # 7. Monitor network requests for direct API access
+        network_requests = await self.playwright_tools.browser_network_requests()
+        
+        return self.process_downloaded_data()
+    
+    async def intelligent_portal_analysis(self, city_name):
+        """Use Exa for comprehensive portal analysis"""
+        
+        # Search for municipal permit portals
+        portal_search = await self.exa_research.web_search_exa(
+            query=f"{city_name} municipal permit portal grading permits"
+        )
+        
+        # Research city government structure
+        city_research = await self.exa_research.company_research_exa(
+            companyName=f"City of {city_name} California government"
+        )
+        
+        # Crawl specific portal pages for structure
+        if portal_search.results:
+            portal_structure = await self.exa_research.crawling_exa(
+                url=portal_search.results[0].url
+            )
+        
+        return {
+            'portal_info': portal_search,
+            'government_structure': city_research,
+            'technical_structure': portal_structure
+        }
+```
+
+### Multi-Portal Concurrent Operations
+
+```python
+async def concurrent_municipal_scraping(self, city_configs):
+    """Scrape multiple municipal portals simultaneously"""
+    
+    # Open multiple browser tabs
+    tabs = []
+    for i, config in enumerate(city_configs):
+        if i > 0:  # First tab is already open
+            await self.playwright_tools.browser_tab_new(config['url'])
+        tabs.append(i)
+    
+    # Process each portal in parallel
+    results = []
+    for i, config in enumerate(city_configs):
+        await self.playwright_tools.browser_tab_select(i)
+        result = await self.scrape_single_portal(config)
+        results.append(result)
+    
+    return results
+```
+
+### Error Recovery and Fallback Integration
+
+```python
+async def robust_scraping_with_fallbacks(self, portal_config):
+    """Enhanced error recovery using MCP tools"""
+    try:
+        # Primary: Advanced Playwright scraping
+        return await self.advanced_playwright_scraping(portal_config)
+        
+    except PlaywrightError as e:
+        # Fallback: Research alternative access methods
+        alternative_research = await self.exa_research.deep_researcher_start(
+            f"Find alternative data access methods for {portal_config['city']} permits"
+        )
+        
+        research_results = await self.exa_research.deep_researcher_check(
+            alternative_research.task_id
+        )
+        
+        # Implement fallback based on research
+        return await self.implement_fallback_strategy(research_results)
+```
+
 ### Specific Data Field Extraction Strategies
 
 #### Required 15 Data Fields Extraction

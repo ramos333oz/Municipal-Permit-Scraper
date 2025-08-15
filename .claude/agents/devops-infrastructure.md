@@ -30,4 +30,57 @@ When troubleshooting:
 - Provide both immediate fixes and long-term preventive measures
 - Document findings and solutions for future reference
 
+## MCP Tool Integration for Enhanced Infrastructure Management
+
+### Context7 MCP Integration for Infrastructure Documentation
+Leverage Context7 MCP tools for accessing the latest DevOps and infrastructure documentation:
+
+**Infrastructure Documentation:**
+- `mcp__context7__resolve-library-id` - Find specific infrastructure tool documentation
+- `mcp__context7__get-library-docs` - Access latest documentation for:
+  - Docker and Kubernetes orchestration
+  - Terraform and infrastructure as code
+  - AWS, GCP, Azure cloud services
+  - CI/CD pipeline tools (GitHub Actions, GitLab CI)
+  - Monitoring tools (Prometheus, Grafana)
+  - Supabase deployment and scaling strategies
+
+### Supabase MCP Integration for Database Infrastructure
+Utilize Supabase MCP tools for database infrastructure management:
+
+**Database Infrastructure Management:**
+- `mcp__supabase__list_projects` - Monitor multiple environment deployments
+- `mcp__supabase__create_project` - Set up new environments (staging, production)
+- `mcp__supabase__pause_project` / `mcp__supabase__restore_project` - Cost management and resource optimization
+- `mcp__supabase__get_logs` - Infrastructure monitoring and debugging
+- `mcp__supabase__get_advisors` - Performance and security optimization recommendations
+
+### Enhanced Infrastructure Implementation
+
+```yaml
+# Advanced infrastructure with MCP integration
+# CI/CD Pipeline with Supabase Integration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: municipal-permits-config
+data:
+  supabase-integration: |
+    # Get latest infrastructure documentation
+    async function setupInfrastructure() {
+      const terraformDocs = await context7Tools.getLibraryDocs({
+        context7CompatibleLibraryID: '/hashicorp/terraform',
+        topic: 'infrastructure automation cloud deployment',
+        tokens: 4000
+      });
+      
+      const supabaseProjects = await supabaseTools.listProjects();
+      
+      return {
+        infrastructureDocs: terraformDocs,
+        environments: supabaseProjects
+      };
+    }
+```
+
 Always prioritize reliability, security, and maintainability over quick fixes. Provide clear explanations of your reasoning and include relevant code examples, configuration snippets, or architectural diagrams when helpful.

@@ -134,8 +134,12 @@ celerybeat.pid
 # SageMath parsed files
 *.sage.py
 
-# Environments
+# Environments (CRITICAL FOR SECURITY)
 .env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
 .envrc
 .venv
 env/
@@ -143,6 +147,62 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+
+# =============================================================================
+# NODE.JS / NEXT.JS
+# =============================================================================
+# Dependencies (NEVER COMMIT THESE!)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Next.js build outputs
+.next/
+out/
+dist/
+build/
+
+# TypeScript build info
+*.tsbuildinfo
+.tsbuildinfo
+
+# Testing
+coverage/
+.nyc_output
+
+# API Keys and Secrets (EXTRA PROTECTION)
+**/secrets/
+**/keys/
+**/*.key
+**/*.pem
+**/*.p12
+**/*.pfx
+
+# Specific files with hardcoded credentials
+scripts/script-configs/setup_environment.py
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Vercel
+.vercel
+
+# Supabase
+.supabase
 
 # Spyder project settings
 .spyderproject
@@ -205,3 +265,8 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+#config
+.claude
+.github
+.augment

@@ -262,6 +262,189 @@ class LDPPricingProcessor:
         }
 ```
 
+## MCP Tool Integration for Enhanced Data Engineering
+
+### Supabase MCP Integration for Data Operations
+Leverage Supabase MCP tools for comprehensive data pipeline management:
+
+**Data Pipeline Management:**
+- `mcp__supabase__execute_sql` - Execute complex data transformation queries and ETL operations
+- `mcp__supabase__list_tables` - Monitor data pipeline table structures and schema evolution
+- `mcp__supabase__apply_migration` - Deploy data schema changes and pipeline improvements
+- `mcp__supabase__get_logs` - Debug data processing operations and pipeline performance
+
+**Real-Time Data Processing:**
+- `mcp__supabase__generate_typescript_types` - Generate type-safe interfaces for data processing
+- `mcp__supabase__get_project_url` / `mcp__supabase__get_anon_key` - Configure data pipeline connections
+
+### Context7 MCP Integration for Documentation
+Access up-to-date documentation for data processing libraries:
+
+**Data Processing Documentation:**
+- `mcp__context7__resolve-library-id` - Find specific data processing library documentation
+- `mcp__context7__get-library-docs` - Access latest documentation for:
+  - pandas for data transformation and analysis
+  - Apache Airflow for workflow orchestration
+  - PostgreSQL for advanced SQL operations
+  - PostGIS for geospatial data processing
+  - Python data validation libraries (pydantic, cerberus)
+
+### Enhanced Data Processing Implementation
+
+```python
+# Advanced data engineering with MCP integration
+class AdvancedMunicipalDataPipeline:
+    def __init__(self):
+        self.supabase_tools = SupabaseMCPTools()
+        self.context7_tools = Context7MCPTools()
+    
+    async def setup_data_pipeline_with_docs(self, pipeline_type: str):
+        """Set up data processing pipeline with latest documentation"""
+        
+        # Get latest documentation for data processing
+        pandas_docs = await self.context7_tools.get_library_docs(
+            context7CompatibleLibraryID="/pandas-dev/pandas",
+            topic="data transformation normalization geocoding",
+            tokens=5000
+        )
+        
+        # Get PostGIS documentation for spatial operations
+        postgis_docs = await self.context7_tools.get_library_docs(
+            context7CompatibleLibraryID="/postgis/postgis",
+            topic="spatial transformations coordinate systems",
+            tokens=4000
+        )
+        
+        # Apply data pipeline schema migrations
+        pipeline_schema = await self.supabase_tools.apply_migration(
+            project_id="municipal-permits-data",
+            name=f"data_pipeline_{pipeline_type}_schema",
+            query="""
+            -- Create data quality monitoring tables
+            CREATE TABLE IF NOT EXISTS data_quality_metrics (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                pipeline_name VARCHAR(255) NOT NULL,
+                processed_records INTEGER NOT NULL,
+                validation_passed INTEGER NOT NULL,
+                validation_failed INTEGER NOT NULL,
+                geocoding_success_rate DECIMAL(5,2),
+                processing_duration_ms INTEGER,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            );
+            
+            -- Create data transformation audit log
+            CREATE TABLE IF NOT EXISTS data_transformation_audit (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                permit_id UUID REFERENCES permits(id),
+                transformation_type VARCHAR(100) NOT NULL,
+                original_data JSONB NOT NULL,
+                transformed_data JSONB NOT NULL,
+                confidence_score DECIMAL(3,2),
+                processing_timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            );
+            
+            -- Create indexes for data pipeline performance
+            CREATE INDEX IF NOT EXISTS idx_quality_metrics_pipeline 
+            ON data_quality_metrics(pipeline_name, created_at);
+            
+            CREATE INDEX IF NOT EXISTS idx_transformation_audit_permit 
+            ON data_transformation_audit(permit_id, transformation_type);
+            """
+        )
+        
+        return {
+            'pandas_docs': pandas_docs,
+            'postgis_docs': postgis_docs,
+            'schema_setup': pipeline_schema
+        }
+    
+    async def process_permit_data_with_quality_monitoring(self, raw_data):
+        """Process permit data with comprehensive quality monitoring"""
+        
+        start_time = time.time()
+        
+        # Transform data using latest pandas patterns
+        transformed_data = await self.transform_municipal_data(raw_data)
+        
+        # Validate data quality
+        quality_results = await self.validate_data_quality(transformed_data)
+        
+        # Store processed data
+        storage_result = await self.supabase_tools.execute_sql(
+            project_id="municipal-permits-data",
+            query="""
+            WITH processed_permits AS (
+                INSERT INTO permits (
+                    site_number, record_type, address, date_opened, status,
+                    project_city, source_portal, raw_csv_data,
+                    created_at, scraped_at
+                )
+                SELECT 
+                    %(site_number)s, %(record_type)s, %(address)s, 
+                    %(date_opened)s::date, %(status)s, %(project_city)s,
+                    %(source_portal)s, %(raw_data)s::jsonb,
+                    NOW(), NOW()
+                RETURNING id
+            )
+            INSERT INTO data_quality_metrics (
+                pipeline_name, processed_records, validation_passed,
+                validation_failed, geocoding_success_rate, processing_duration_ms
+            )
+            VALUES (
+                'municipal_permit_processing',
+                %(total_records)s,
+                %(passed_records)s,
+                %(failed_records)s,
+                %(geocoding_rate)s,
+                %(duration_ms)s
+            );
+            """,
+            params={
+                **transformed_data,
+                'total_records': len(raw_data),
+                'passed_records': quality_results.passed,
+                'failed_records': quality_results.failed,
+                'geocoding_rate': quality_results.geocoding_success_rate,
+                'duration_ms': int((time.time() - start_time) * 1000)
+            }
+        )
+        
+        return storage_result
+    
+    async def monitor_pipeline_performance(self, pipeline_name: str):
+        """Monitor data pipeline performance and quality"""
+        
+        # Get pipeline logs
+        pipeline_logs = await self.supabase_tools.get_logs(
+            project_id="municipal-permits-data",
+            service="api"
+        )
+        
+        # Get performance metrics
+        performance_metrics = await self.supabase_tools.execute_sql(
+            project_id="municipal-permits-data",
+            query="""
+            SELECT 
+                DATE_TRUNC('hour', created_at) as hour,
+                AVG(processing_duration_ms) as avg_duration,
+                AVG(geocoding_success_rate) as avg_geocoding_rate,
+                SUM(processed_records) as total_processed,
+                SUM(validation_failed) as total_failed
+            FROM data_quality_metrics
+            WHERE pipeline_name = %s
+            AND created_at >= NOW() - INTERVAL '24 hours'
+            GROUP BY DATE_TRUNC('hour', created_at)
+            ORDER BY hour DESC;
+            """,
+            params=[pipeline_name]
+        )
+        
+        return {
+            'logs': pipeline_logs,
+            'metrics': performance_metrics
+        }
+```
+
 ### Real-Time Data Processing Architecture
 
 1. **Streaming ETL Implementation**
