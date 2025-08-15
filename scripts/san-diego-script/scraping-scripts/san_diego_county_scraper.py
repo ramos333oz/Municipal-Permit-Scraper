@@ -31,7 +31,7 @@ except ImportError:
 
 # Supabase integration (Direct to Supabase architecture)
 try:
-    from supabase_database_service import SupabaseDatabaseService, create_database_service
+    from supabase import create_client
     SUPABASE_AVAILABLE = True
 except ImportError:
     SUPABASE_AVAILABLE = False
@@ -1033,39 +1033,37 @@ class SanDiegoCSVScraper:
         return enhanced_permits
     
     async def _store_permits_in_supabase(self, permits: List[PermitData]) -> Dict:
-        """Store permits in Supabase database using enhanced database service"""
+        """Store permits in Supabase database using direct client"""
         if not SUPABASE_AVAILABLE:
             logger.warning("⚠️ Supabase integration not available")
             return {'success': 0, 'failed': len(permits)}
 
         try:
-            # Create enhanced database service
-            db_service = create_database_service()
+            # Get Supabase credentials from environment
+            supabase_url = os.getenv('SUPABASE_URL')
+            supabase_key = os.getenv('SUPABASE_ANON_KEY')
+
+            if not supabase_url or not supabase_key:
+                logger.error("❌ Supabase credentials not found in environment")
+                return {'success': 0, 'failed': len(permits)}
+
+            # Create Supabase client
+            supabase = create_client(supabase_url, supabase_key)
 
             # Convert permits to dictionary format
             permits_data = [asdict(permit) for permit in permits]
 
-            # Store permits using enhanced batch processing
-            result = await db_service.store_permits_batch(permits_data)
+            # Upsert permits to database
+            result = supabase.table("permits").upsert(
+                permits_data, on_conflict="site_number"
+            ).execute()
 
-            if result.success:
-                logger.info(f"📤 Enhanced Supabase storage: {result.records_processed} permits stored successfully")
-                logger.info(f"⏱️ Processing time: {result.processing_time_ms}ms")
-
-                if result.details:
-                    logger.info(f"📊 Validation details: {result.details}")
-            else:
-                logger.error(f"❌ Enhanced Supabase storage failed: {result.error_message}")
-
-            return {
-                'success': result.records_processed,
-                'failed': result.records_failed,
-                'processing_time_ms': result.processing_time_ms,
-                'details': result.details
-            }
+            success_count = len(result.data) if result.data else 0
+            logger.info(f"📤 Supabase storage: {success_count} permits stored successfully")
+            return {'success': success_count, 'failed': len(permits) - success_count}
 
         except Exception as e:
-            logger.error(f"❌ Enhanced Supabase storage failed: {e}")
+            logger.error(f"❌ Supabase storage failed: {e}")
             return {'success': 0, 'failed': len(permits)}
     
     async def random_delay(self, min_seconds: float, max_seconds: float) -> None:
